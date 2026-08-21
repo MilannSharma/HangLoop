@@ -191,7 +191,7 @@ export default function PlayerModal({ open, room, currentUser, onClose }: Props)
             <div className="video-container" ref={playerContainerRef}>
               <iframe
                 id="yt-embed-player"
-                src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&enablejsapi=1&rel=0`}
+                src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&enablejsapi=1&rel=0&playsinline=1`}
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
                 title={room.name}

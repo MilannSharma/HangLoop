@@ -209,18 +209,24 @@ export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({
             cc_load_policy: 0,
             cc_lang_pref: 'none',
             showinfo: 0,
-            start: Math.max(0, Math.floor(seekPosition)),
+            start: (!isLiveStream && seekPosition > 0) ? Math.floor(seekPosition) : undefined,
           },
           events: {
             onReady: (event: any) => {
               if (!isMounted) return;
               playerReadyRef.current = true;
               loadedVideoRef.current = activeVideoId;
+              setPlayerStatus('PLAYING');
+              setErrorCode(null);
+              setNeedUserGesture(false);
               try {
                 event.target.playVideo();
                 if (typeof event.target.unMute === 'function') event.target.unMute();
               } catch (e) {
-                setNeedUserGesture(true);
+                try {
+                  if (typeof event.target.mute === 'function') event.target.mute();
+                  event.target.playVideo();
+                } catch (e2) {}
               }
             },
             onStateChange: (event: any) => {
@@ -249,7 +255,6 @@ export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({
                 setErrorCode(err);
                 if (onTrackFailedRef.current) onTrackFailedRef.current(failedId, err);
               } else {
-                // For live streams, keep player status or retry to prevent premature stream disruption
                 setErrorCode(err);
               }
             },
@@ -277,7 +282,7 @@ export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({
     }
 
     return () => { isMounted = false; };
-  }, [playerContainerId, activeVideoId, seekPosition]);
+  }, [playerContainerId, activeVideoId, seekPosition, isLiveStream]);
 
   // ──────────────────────────────────────────────────────────────
   // 2. VIDEO CHANGE EFFECT (Web & Native)
@@ -298,40 +303,40 @@ export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({
         try {
           player.loadVideoById({
             videoId: activeVideoId,
-            startSeconds: Math.max(0, Math.floor(seekPosition)),
+            startSeconds: (!isLiveStream && seekPosition > 0) ? Math.floor(seekPosition) : 0,
           });
           player.playVideo();
           if (typeof player.unMute === 'function') player.unMute();
         } catch (e) {}
       }
     } else {
-      if (nativePlayerRef.current && typeof (nativePlayerRef.current as any).seekTo === 'function') {
+      if (!isLiveStream && seekPosition > 0 && nativePlayerRef.current && typeof (nativePlayerRef.current as any).seekTo === 'function') {
         try {
-          (nativePlayerRef.current as any).seekTo(Math.max(0, Math.floor(seekPosition)), true);
+          (nativePlayerRef.current as any).seekTo(Math.floor(seekPosition), true);
         } catch (e) {}
       }
     }
-  }, [activeVideoId, seekPosition, resetHideTimer]);
+  }, [activeVideoId, seekPosition, isLiveStream, resetHideTimer]);
 
   // ──────────────────────────────────────────────────────────────
   // 3. LIVE SEEK SYNC EFFECT (Auto-syncs on unpause, unlock, etc.)
   // ──────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (seekPosition > 0 && playerReadyRef.current) {
+    if (!isLiveStream && seekPosition > 0 && playerReadyRef.current) {
       if (Platform.OS === 'web') {
         const player = webPlayerInstanceRef.current;
         if (player && typeof player.seekTo === 'function') {
           try {
-            player.seekTo(Math.max(0, Math.floor(seekPosition)), true);
+            player.seekTo(Math.floor(seekPosition), true);
           } catch (e) {}
         }
       } else {
         try {
-          (nativePlayerRef.current as any)?.seekTo(Math.max(0, Math.floor(seekPosition)), true);
+          (nativePlayerRef.current as any)?.seekTo(Math.floor(seekPosition), true);
         } catch (e) {}
       }
     }
-  }, [seekPosition]);
+  }, [seekPosition, isLiveStream]);
 
   // ──────────────────────────────────────────────────────────────
   // 4. Native State Handlers
@@ -367,13 +372,14 @@ export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({
     playerReadyRef.current = true;
     setPlayerStatus('PLAYING');
     setErrorCode(null);
-    // Instant Auto Live-Seek on entry
-    if (seekPosition > 0) {
+    setNeedUserGesture(false);
+    // Instant Auto Live-Seek on entry (only for catalog tracks with real seek offset)
+    if (!isLiveStream && seekPosition > 0) {
       try {
-        (nativePlayerRef.current as any)?.seekTo(Math.max(0, Math.floor(seekPosition)), true);
+        (nativePlayerRef.current as any)?.seekTo(Math.floor(seekPosition), true);
       } catch (e) {}
     }
-  }, [seekPosition]);
+  }, [seekPosition, isLiveStream]);
 
   // ──────────────────────────────────────────────────────────────
   // 5. Play/Pause Sync
@@ -518,7 +524,7 @@ export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({
                 cc_lang_pref: 'none',
                 showClosedCaptions: false,
                 iv_load_policy: 3,
-                start: Math.max(0, Math.floor(seekPosition)),
+                start: (!isLiveStream && seekPosition > 0) ? Math.floor(seekPosition) : undefined,
               }}
               onChangeState={handleNativeStateChange}
               onError={handleNativeError}

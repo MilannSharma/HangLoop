@@ -41,11 +41,20 @@ interface RoomScreenProps {
   onLeaveRoom: () => void;
 }
 
+function extractYouTubeVideoId(urlOrId?: string): string {
+  if (!urlOrId) return '';
+  const raw = urlOrId.trim();
+  if (/^[a-zA-Z0-9_-]{11}$/.test(raw)) return raw;
+  const match = raw.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/|live\/))([\w-]{11})/);
+  return match && match[1] ? match[1] : raw;
+}
+
 export const RoomScreen: React.FC<RoomScreenProps> = ({
   room,
   user,
   blockedUsers = [],
   onBlockUser,
+  onUnblockUser,
   onLeaveRoom,
 }) => {
   const { colors } = useTheme();
@@ -77,10 +86,20 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
   const isSuperAdmin = (user.email || '').toLowerCase().trim() === 'milansharma942105@gmail.com';
   const isModerator = !!(user.is_moderator || isSuperAdmin || isHost);
 
+  const initialVideoId = room.current_video_id || extractYouTubeVideoId(room.source_youtube_url);
+
   // Default empty state — real data arrives from Durable Object via INIT_STATE WebSocket message
   const [roomState, setRoomState] = useState<RoomStatePayload>({
     playbackState: {
-      currentVideo: null,
+      currentVideo: initialVideoId ? {
+        id: 'init-' + initialVideoId,
+        videoId: initialVideoId,
+        title: room.current_title || room.name,
+        artist: room.current_artist || room.created_by || 'Hangloop Live',
+        thumbnail: room.current_thumbnail || room.thumbnail_url || `https://img.youtube.com/vi/${initialVideoId}/hqdefault.jpg`,
+        addedBy: room.created_by || 'Admin',
+        durationSeconds: room.play_source_type === 'YOUTUBE_URL' ? 0 : 240,
+      } : null,
       isPlaying: true,
       seekPosition: 0,
       queue: [],
@@ -204,6 +223,9 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
           };
         });
 
+        if (data.playbackState) {
+          setIsLocalPlaying(true);
+        }
         if (data.roomStartTime) setRoomStartTime(data.roomStartTime);
         if (data.isHost !== undefined) setIsHost(data.isHost);
         if (data.isStreamEnded !== undefined) setIsStreamEnded(data.isStreamEnded);
@@ -293,9 +315,10 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
       } else if (data.type === 'ERROR') {
         Alert.alert('Chat Notice', data.message);
       } else if (data.type === 'PLAYBACK_SYNC') {
+        setIsLocalPlaying(true);
         setRoomState((prev) => ({
           ...prev,
-          playbackState: data.playbackState,
+          playbackState: data.playbackState || prev.playbackState,
         }));
       } else if (data.type === 'QUEUE_UPDATED') {
         setRoomState((prev) => ({
@@ -306,6 +329,7 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
           },
         }));
       } else if (data.type === 'ROOM_UPDATED') {
+        setIsLocalPlaying(true);
         if (data.room) {
           setCurrentRoomData((prev) => ({
             ...prev,
@@ -842,7 +866,7 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
                 isPlaying={isLocalPlaying && !isStreamEnded}
                 seekPosition={roomState.playbackState.seekPosition}
                 isListenOnly={isListenOnlyMode}
-                isLiveStream={currentRoomData.play_source_type === 'YOUTUBE_URL'}
+                isLiveStream={currentRoomData.play_source_type === 'YOUTUBE_URL' || room.play_source_type === 'YOUTUBE_URL' || (roomState.playbackState?.currentVideo ? roomState.playbackState.currentVideo.durationSeconds === 0 : false)}
                 isStreamEnded={isStreamEnded || !!roomState.playbackState?.isStreamEnded}
                 onTogglePlay={handleTogglePlay}
                 onToggleListenOnly={() => setIsListenOnlyMode((prev) => !prev)}
