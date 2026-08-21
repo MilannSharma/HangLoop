@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Hangloop — Feature &amp; YouTube Live Stream Requests</title>
+  <meta name="description" content="Hangloop ke liye naye features, songs, aur YouTube live streams request karein. Community ideas par upvote karein."/>
+  <link rel="icon" type="image/png" href="logo-gold.png"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --gold: #D4A017;
+      --gold-light: #F0C040;
+      --gold-dim: #A0780F;
+      --gold-glow: rgba(212, 160, 23, 0.35);
+      --gold-glow-soft: rgba(212, 160, 23, 0.12);
+      --cyan: #38BDF8;
+      --cyan-glow: rgba(56, 189, 248, 0.3);
+      --bg: #07090E;
+      --bg-card: #0D111D;
+      --bg-card-hover: #141B2D;
+      --surface: rgba(255, 255, 255, 0.04);
+      --surface-border: rgba(255, 255, 255, 0.08);
+      --border-gold: rgba(212, 160, 23, 0.35);
+      --text: #F3F4F6;
+      --text-muted: rgba(243, 244, 246, 0.65);
+      --text-dim: rgba(243, 244, 246, 0.4);
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 22px;
+      --radius-pill: 999px;
+      --nav-h: 70px;
+    }
+
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    .display { font-family: 'Syne', sans-serif; font-weight: 800; letter-spacing: -0.02em; }
+    .gold-text {
+      background: linear-gradient(135deg, #F5D061 0%, #D4A017 50%, #B8860B 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .container { max-width: 1180px; margin: 0 auto; padding: 0 20px; }
+
+    /* Motion Glow Backgrounds */
+    .glow-blob { position: fixed; border-radius: 50%; pointer-events: none; filter: blur(140px); z-index: 0; }
+    .glow-1 { width: 550px; height: 550px; background: radial-gradient(circle, rgba(212,160,23,0.15) 0%, transparent 70%); top: -100px; left: -100px; }
+    .glow-2 { width: 450px; height: 450px; background: radial-gradient(circle, rgba(56,189,248,0.1) 0%, transparent 70%); bottom: 10%; right: -100px; }
+
+    /* Scroll progress bar */
+    #scroll-progress {
+      position: fixed; top: 0; left: 0; height: 3px; background: linear-gradient(90deg, #F0C040, #EF4444, #38BDF8);
+      z-index: 999; width: 0%; transition: width 0.1s ease-out;
+    }
+
+    /* ── Navigation ── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100; height: var(--nav-h);
+      display: flex; align-items: center; background: rgba(7, 9, 14, 0.9);
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--surface-border);
+    }
+    .nav-inner {
+      display: flex; align-items: center; justify-content: space-between; width: 100%;
+      gap: 16px; flex-wrap: nowrap;
+    }
+    .nav-logo { display: flex; align-items: center; gap: 8px; text-decoration: none; flex-shrink: 0; }
+    .nav-logo img { width: 32px; height: 32px; object-fit: contain; }
+    .nav-logo-text { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1.2rem; color: #FFF; }
+    
+    .nav-links {
+      display: flex; align-items: center; gap: 18px; list-style: none;
+      margin-left: auto; margin-right: 8px; white-space: nowrap; flex-shrink: 0;
+    }
+    .nav-links a {
+      color: var(--text-muted); text-decoration: none; font-size: 0.86rem; font-weight: 500;
+      transition: color 0.2s; white-space: nowrap; line-height: 1; display: inline-flex; align-items: center; gap: 5px;
+    }
+    .nav-links a:hover { color: #FFF; }
+    .nav-links a.active { color: var(--gold-light); font-weight: 600; }
+
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+      padding: 9px 18px; border-radius: var(--radius-pill); font-family: 'Inter', sans-serif;
+      font-weight: 600; font-size: 0.86rem; text-decoration: none; cursor: pointer;
+      border: 1px solid transparent; transition: all 0.25s ease; white-space: nowrap;
+    }
+    .btn-gold {
+      background: linear-gradient(135deg, #F0C040 0%, #D4A017 60%, #B8860B 100%);
+      color: #07090E; box-shadow: 0 0 20px var(--gold-glow); font-weight: 700;
+    }
+    .btn-gold:hover { transform: translateY(-2px); box-shadow: 0 0 30px var(--gold-glow); }
+    .btn-red {
+      background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%); color: #FFF;
+      box-shadow: 0 0 16px rgba(239, 68, 68, 0.4);
+    }
+    .btn-red:hover { transform: translateY(-2px); box-shadow: 0 0 25px rgba(239, 68, 68, 0.6); }
+    .btn-ghost { background: var(--surface); color: var(--text); border-color: var(--surface-border); }
+    .btn-ghost:hover { border-color: var(--border-gold); background: rgba(212,160,23,0.08); color: #FFF; transform: translateY(-2px); }
+    .btn-sm { padding: 6px 14px; font-size: 0.8rem; }
+    .btn-lg { padding: 13px 26px; font-size: 0.95rem; border-radius: var(--radius-md); }
+
+    /* ── Header Hero for Requests ── */
+    .requests-hero {
+      padding-top: calc(var(--nav-h) + 40px); padding-bottom: 40px; text-align: center;
+      position: relative; z-index: 1;
+    }
+    .requests-badge {
+      display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px;
+      border-radius: var(--radius-pill); background: rgba(212, 160, 23, 0.1);
+      border: 1px solid var(--border-gold); font-size: 0.76rem; font-weight: 700;
+      color: var(--gold-light); letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 16px;
+    }
+    .requests-title { font-size: clamp(2.2rem, 4vw, 3.4rem); margin-bottom: 14px; }
+    .requests-sub { font-size: 1rem; color: var(--text-muted); max-width: 620px; margin: 0 auto 28px; }
+
+    /* ── Controls Bar ── */
+    .requests-controls {
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
+      gap: 16px; margin-bottom: 30px; padding: 14px 20px; border-radius: var(--radius-md);
+      background: rgba(255, 255, 255, 0.03); border: 1px solid var(--surface-border);
+    }
+    .filter-tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+    .filter-btn {
+      background: var(--surface); border: 1px solid var(--surface-border); color: var(--text-muted);
+      padding: 6px 14px; border-radius: var(--radius-pill); font-size: 0.82rem; font-weight: 600;
+      cursor: pointer; transition: all 0.2s; white-space: nowrap;
+    }
+    .filter-btn:hover { color: #FFF; border-color: rgba(255,255,255,0.2); }
+    .filter-btn.active { background: rgba(212,160,23,0.18); border-color: var(--border-gold); color: var(--gold-light); }
+
+    /* ── Requests Grid ── */
+    .requests-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; margin-bottom: 60px; }
+
+    .request-card {
+      background: var(--bg-card); border: 1px solid var(--surface-border);
+      border-radius: var(--radius-lg); padding: 22px; display: flex; flex-direction: column;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); position: relative;
+    }
+    .request-card:hover {
+      border-color: var(--border-gold); transform: translateY(-4px);
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.5), 0 0 25px var(--gold-glow-soft);
+    }
+
+    .request-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .request-type-badge {
+      font-size: 0.7rem; font-weight: 800; padding: 3px 8px; border-radius: 6px;
+      letter-spacing: 0.05em; text-transform: uppercase;
+    }
+    .badge-feature { background: rgba(56, 189, 248, 0.15); color: var(--cyan); border: 1px solid rgba(56, 189, 248, 0.3); }
+    .badge-live { background: rgba(239, 68, 68, 0.15); color: #EF4444; border: 1px solid rgba(239, 68, 68, 0.3); }
+    .badge-song { background: rgba(212, 160, 23, 0.15); color: var(--gold-light); border: 1px solid var(--border-gold); }
+    .badge-ui { background: rgba(168, 85, 247, 0.15); color: #C084FC; border: 1px solid rgba(168, 85, 247, 0.3); }
+
+    .request-status-pill {
+      font-size: 0.72rem; font-weight: 700; padding: 3px 8px; border-radius: var(--radius-pill);
+      display: inline-flex; align-items: center; gap: 5px;
+    }
+    .status-in-progress { background: rgba(16, 185, 129, 0.15); color: #10B981; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .status-planned { background: rgba(56, 189, 248, 0.15); color: #38BDF8; border: 1px solid rgba(56, 189, 248, 0.3); }
+    .status-review { background: rgba(245, 158, 11, 0.15); color: #F59E0B; border: 1px solid rgba(245, 158, 11, 0.3); }
+
+    .request-card-title {
+      font-family: 'Syne', sans-serif; font-weight: 700; font-size: 1.12rem; color: #FFF;
+      margin-bottom: 8px; line-height: 1.35;
+    }
+    .request-card-desc {
+      font-size: 0.85rem; color: var(--text-muted); line-height: 1.55; margin-bottom: 14px; flex: 1;
+    }
+
+    .request-link-box {
+      background: rgba(255, 255, 255, 0.04); border: 1px solid var(--surface-border);
+      border-radius: var(--radius-sm); padding: 8px 12px; margin-bottom: 14px; font-size: 0.78rem;
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    }
+    .request-link-box a { color: var(--cyan); text-decoration: underline; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .request-card-footer {
+      display: flex; align-items: center; justify-content: space-between;
+      border-top: 1px solid var(--surface-border); padding-top: 14px; margin-top: auto;
+    }
+    .request-user-info { display: flex; align-items: center; gap: 8px; }
+    .request-avatar { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; background: #222; }
+    .request-username { font-size: 0.78rem; font-weight: 600; color: var(--text); }
+    .request-time { font-size: 0.72rem; color: var(--text-dim); }
+
+    .upvote-btn {
+      display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px;
+      border-radius: var(--radius-pill); background: var(--surface); border: 1px solid var(--surface-border);
+      color: var(--text); font-size: 0.82rem; font-weight: 700; cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .upvote-btn:hover { border-color: var(--border-gold); background: rgba(212,160,23,0.12); color: var(--gold-light); }
+    .upvote-btn.voted { background: rgba(212,160,23,0.2); border-color: var(--gold); color: var(--gold-light); }
+
+    /* ── Modal & Form Controls Dropdown Fix ── */
+    .modal-backdrop {
+      position: fixed; inset: 0; z-index: 1000;
+      background: rgba(4, 6, 10, 0.85); backdrop-filter: blur(16px);
+      display: flex; align-items: center; justify-content: center; padding: 16px;
+      opacity: 0; pointer-events: none; transition: opacity 0.25s ease;
+    }
+    .modal-backdrop.active { opacity: 1; pointer-events: auto; }
+    .modal-card {
+      background: #0C101C; border: 1px solid var(--border-gold); border-radius: var(--radius-lg);
+      width: 100%; max-width: 500px; box-shadow: 0 30px 80px rgba(0,0,0,0.9);
+      position: relative; overflow: hidden; transform: scale(0.95); transition: all 0.25s ease;
+    }
+    .modal-backdrop.active .modal-card { transform: scale(1); }
+    .modal-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 20px 24px; border-bottom: 1px solid var(--surface-border);
+    }
+    .modal-close-btn {
+      background: var(--surface); border: 1px solid var(--surface-border); color: var(--text-muted);
+      width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center;
+      justify-content: center; cursor: pointer; font-size: 1rem;
+    }
+    .modal-body { padding: 24px; max-height: 80vh; overflow-y: auto; }
+    .form-group { margin-bottom: 16px; text-align: left; }
+    .form-label { display: block; font-size: 0.82rem; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+    
+    .form-input, .form-textarea, .form-select, select {
+      width: 100%; padding: 11px 14px; border-radius: var(--radius-sm);
+      background-color: #0D111D !important;
+      border: 1px solid var(--surface-border); color: #FFFFFF !important;
+      font-size: 0.9rem; font-family: inherit; outline: none; transition: border-color 0.2s;
+    }
+
+    .form-select, select {
+      appearance: none; -webkit-appearance: none; -moz-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23D4A017' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
+      background-repeat: no-repeat !important;
+      background-position: right 14px center !important;
+      padding-right: 36px !important;
+      cursor: pointer;
+    }
+
+    .form-select option, select option {
+      background-color: #0C101D !important;
+      color: #FFFFFF !important;
+      padding: 12px 14px !important;
+      font-size: 0.92rem !important;
+    }
+
+    .form-input:focus, .form-textarea:focus, .form-select:focus, select:focus {
+      border-color: var(--gold-light); background-color: #121828 !important;
+    }
+    .form-textarea { resize: vertical; min-height: 90px; }
+
+    /* Scroll animations */
+    .reveal-card {
+      opacity: 0; transform: translateY(24px); transition: opacity 0.5s ease, transform 0.5s ease;
+    }
+    .reveal-card.revealed { opacity: 1; transform: translateY(0); }
+
+    .nav-burger {
+      display: none; flex-direction: column; justify-content: center; align-items: center;
+      gap: 5px; cursor: pointer; padding: 6px; background: var(--surface);
+      border: 1px solid var(--surface-border); border-radius: 8px; width: 36px; height: 36px;
+    }
+    .nav-burger span { display: block; width: 18px; height: 2px; background: #FFF; border-radius: 2px; transition: all 0.25s ease; }
+    .nav-burger.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+    .nav-burger.open span:nth-child(2) { opacity: 0; }
+    .nav-burger.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+    .mobile-nav {
+      display: none; position: fixed; top: var(--nav-h); left: 0; right: 0;
+      background: rgba(7, 9, 14, 0.98); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+      border-bottom: 1px solid var(--border-gold); padding: 20px;
+      flex-direction: column; gap: 12px; z-index: 99;
+      transform: translateY(-120%); transition: transform 0.3s ease;
+    }
+    .mobile-nav.open { display: flex; transform: translateY(0); }
+    .mobile-nav a {
+      color: var(--text); text-decoration: none; font-size: 0.95rem; font-weight: 600;
+      padding: 10px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .mobile-nav a:hover { color: var(--gold-light); }
+
+    @media (max-width: 1080px) {
+      .nav-links, .nav-desktop-btn { display: none; }
+      .nav-burger { display: flex; }
+    }
+
+    footer { background: #04060A; border-top: 1px solid var(--surface-border); padding: 36px 0; margin-top: 60px; }
+  </style>
+</head>
+<body>
+
+  <div id="scroll-progress"></div>
+  <div class="glow-blob glow-1" aria-hidden="true"></div>
+  <div class="glow-blob glow-2" aria-hidden="true"></div>
+
+  <!-- Navigation -->
+  <nav id="navbar">
+    <div class="container">
+      <div class="nav-inner">
+        <a href="index.html" class="nav-logo">
+          <img src="logo-gold.png" alt="Hangloop" width="32" height="32"/>
+          <span class="nav-logo-text">Hangloop</span>
+        </a>
+
+        <ul class="nav-links">
+          <li><a href="index.html"><span>🏠</span><span>Home</span></a></li>
+          <li><a href="index.html#live-streams"><span style="color:#EF4444">&#9679;</span><span>Live Rooms</span></a></li>
+          <li><a href="index.html#request-stream"><span>🔴</span><span>Request Stream</span></a></li>
+          <li><a href="index.html#feedback"><span>⭐</span><span>Feedback</span></a></li>
+          <li><a href="requests.html" class="active"><span>💡</span><span>Requests</span></a></li>
+        </ul>
+
+        <div style="display:flex; align-items:center; gap:10px;">
+          <button class="btn btn-gold btn-sm nav-desktop-btn" onclick="openNewRequestModal()">
+            ➕ Request Submit Karein
+          </button>
+          <button class="nav-burger" id="burger-btn" aria-label="Toggle menu" onclick="toggleMobileMenu()">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mobile Drawer -->
+    <div class="mobile-nav" id="mobile-menu">
+      <a href="index.html" onclick="closeMobileMenu()">🏠 Home</a>
+      <a href="index.html#live-streams" onclick="closeMobileMenu()">🔴 Live Streams</a>
+      <a href="index.html#request-stream" onclick="closeMobileMenu()">🔴 Request Stream</a>
+      <a href="index.html#feedback" onclick="closeMobileMenu()">⭐ Feedback</a>
+      <a href="requests.html" onclick="closeMobileMenu()">💡 Requests</a>
+      <button class="btn btn-gold" onclick="closeMobileMenu(); openNewRequestModal();" style="width:100%; margin-top:6px;">
+        ➕ Naya Request Submit Karein
+      </button>
+    </div>
+  </nav>
+
+  <!-- Requests Hero -->
+  <section class="requests-hero">
+    <div class="container">
+      <div class="requests-badge">Community Feature &amp; YouTube Live Requests</div>
+      <h1 class="display requests-title">
+        Koi Naya Feature Ya Live Stream Chahiye?<br/>
+        <span class="gold-text">Batayein Aur Request Karein.</span>
+      </h1>
+      <p class="requests-sub">
+        Hangloop par apna favorite YouTube live stream link add karwayein, naye features suggest karein, aur community ideas par upvote karein!
+      </p>
+    </div>
+  </section>
+
+  <!-- Main Content -->
+  <section>
+    <div class="container">
+      <!-- Controls -->
+      <div class="requests-controls">
+        <div class="filter-tabs">
+          <button class="filter-btn active" onclick="filterRequests('ALL')">Sabhi Requests</button>
+          <button class="filter-btn" onclick="filterRequests('YOUTUBE_LIVE')">🔴 YouTube Live Streams</button>
+          <button class="filter-btn" onclick="filterRequests('FEATURE')">✨ Features</button>
+          <button class="filter-btn" onclick="filterRequests('SONG')">🎵 Songs</button>
+          <button class="filter-btn" onclick="filterRequests('IN_PROGRESS')">⚡ In Progress</button>
+          <button class="filter-btn" onclick="filterRequests('PLANNED')">🚀 Planned</button>
+        </div>
+
+        <button class="btn btn-gold btn-sm" onclick="openNewRequestModal()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Naya Request Submit Karein
+        </button>
+      </div>
+
+      <!-- Requests Grid -->
+      <div class="requests-grid" id="requests-container">
+        <!-- Rendered by JS -->
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <img src="logo-gold.png" alt="Hangloop" width="24" height="24"/>
+          <span style="font-family:'Syne',sans-serif; font-weight:800; font-size:1rem; color:#FFF">Hangloop Requests</span>
+        </div>
+        <p style="font-size:0.82rem; color:var(--text-dim);">&#169; 2026 Hangloop. Built for synchronized music streaming.</p>
+        <a href="index.html" class="btn btn-ghost btn-sm">← Back to Home</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ── SUBMIT REQUEST MODAL ── -->
+  <div class="modal-backdrop" id="new-request-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <h3 style="font-family:'Syne',sans-serif; font-size:1.2rem; font-weight:700; color:#FFF;">Naya Feature / Stream Request</h3>
+          <p style="font-size:0.8rem; color:var(--text-muted); margin-top:2px;">Aapka suggestion roadmap mein shamil hoga</p>
+        </div>
+        <button class="modal-close-btn" onclick="closeNewRequestModal()">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <form onsubmit="handleRequestSubmit(event)">
+          <div class="form-group">
+            <label class="form-label">Request Type</label>
+            <select class="form-select" id="req-type-input" onchange="toggleUrlField()">
+              <option value="YOUTUBE_LIVE">🔴 YouTube Live Stream Request</option>
+              <option value="FEATURE">✨ New App Feature</option>
+              <option value="SONG">🎵 Song / Playlist Request</option>
+              <option value="UI">🎨 UI / Design Enhancement</option>
+            </select>
+          </div>
+
+          <div class="form-group" id="url-field-wrap">
+            <label class="form-label">YouTube Live Stream URL *</label>
+            <input type="url" class="form-input" id="req-url-input" placeholder="https://www.youtube.com/watch?v=... ya https://youtube.com/live/..."/>
+            <div class="form-hint">YouTube stream link darj karein jise aap Hangloop par sunna chahte hain.</div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Request Title (Short &amp; Clear) *</label>
+            <input type="text" class="form-input" id="req-title-input" placeholder="e.g. 24/7 Lofi Girl / Bass Boost Equalizer" required maxlength="60"/>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Details / Description</label>
+            <textarea class="form-textarea" id="req-desc-input" placeholder="Samjhayein yeh stream ya feature kyun add hona chahiye..." required maxlength="250"></textarea>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Aapka Naam ya Username *</label>
+            <input type="text" class="form-input" id="req-name-input" placeholder="e.g. Aman Sharma" required maxlength="25"/>
+          </div>
+
+          <button type="submit" class="btn btn-gold" style="width:100%; margin-top:8px;">
+            Submit Request
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = '@hangloop_requests_data';
+    const VOTES_KEY = '@hangloop_request_upvotes';
+
+    // Demo Requests with YouTube Live Streams (No private rooms)
+    const DEFAULT_REQUESTS = [
+      {
+        id: 'req-yt-1',
+        title: '24/7 Lofi Girl & Chill Beats Radio Stream',
+        desc: 'Study aur focus ke liye Lofi Girl ka official 24/7 live stream Hangloop live room mein permanent add karein.',
+        type: 'YOUTUBE_LIVE',
+        status: 'PLANNED',
+        youtubeUrl: 'https://www.youtube.com/live/jfKfPfyJRdk',
+        author: 'Riya Gupta',
+        authorAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Riya',
+        votes: 49,
+        createdAt: '1 din pehle'
+      },
+      {
+        id: 'req-yt-2',
+        title: 'Coke Studio Season Hits 24/7 Live Jam',
+        desc: 'Coke Studio Pakistan aur Bharat ke all-time acoustic & fusion live hits ka dedicated streaming room.',
+        type: 'YOUTUBE_LIVE',
+        status: 'IN_PROGRESS',
+        youtubeUrl: 'https://www.youtube.com/watch?v=5Eqb_-j3FDA',
+        author: 'Farhan Ali',
+        authorAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Farhan',
+        votes: 44,
+        createdAt: '2 din pehle'
+      },
+      {
+        id: 'req-1',
+        title: 'Bass Boost & Custom Audio Equalizer',
+        desc: 'Room player mein live bass boost, treble control aur acoustic presets hona chahiye for better sound clarity.',
+        type: 'FEATURE',
+        status: 'IN_PROGRESS',
+        author: 'Rohan Verma',
+        authorAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Rohan',
+        votes: 42,
+        createdAt: '2 din pehle'
+      },
+      {
+        id: 'req-2',
+        title: 'Spotify & YouTube Music Playlist Importer',
+        desc: 'Direct apna personal Spotify ya YouTube playlist URL daal kar live room mein queue kar sakein.',
+        type: 'FEATURE',
+        status: 'PLANNED',
+        author: 'Sneha Kapoor',
+        authorAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sneha',
+        votes: 38,
+        createdAt: '3 din pehle'
+      },
+      {
+        id: 'req-3',
+        title: 'Sleep Timer with Auto Stop Music',
+        desc: 'Raat ko sunte waqt 30 ya 60 minute baad room audio automatic pause karne ka smart sleep timer option.',
+        type: 'FEATURE',
+        status: 'IN_PROGRESS',
+        author: 'Arjun Mehta',
+        authorAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Arjun',
+        votes: 35,
+        createdAt: '4 din pehle'
+      },
+      {
+        id: 'req-4',
+        title: '90s Evergreen Bollywood Hits 24/7 Live Room',
+        desc: 'Kishore Kumar, Kumar Sanu, Udit Narayan aur Alka Yagnik ke 90s superhits ka dedicated 24/7 live station.',
+        type: 'SONG',
+        status: 'PLANNED',
+        author: 'Pooja Roy',
+        authorAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Pooja',
+        votes: 24,
+        createdAt: '1 hafta pehle'
+      }
+    ];
+
+    let currentRequests = [];
+    let activeFilter = 'ALL';
+
+    window.addEventListener('DOMContentLoaded', () => {
+      loadRequests();
+      renderRequests();
+      setupScrollAnimations();
+    });
+
+    function loadRequests() {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          let list = JSON.parse(stored);
+          // Filter out any private room mentions
+          list = list.filter(r => !(r.title && r.title.toLowerCase().includes('private room')));
+          currentRequests = list.length > 0 ? list : DEFAULT_REQUESTS;
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(currentRequests));
+        } else {
+          currentRequests = DEFAULT_REQUESTS;
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(currentRequests));
+        }
+      } catch (e) {
+        currentRequests = DEFAULT_REQUESTS;
+      }
+    }
+
+    function saveRequests() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(currentRequests));
+      } catch (e) {}
+    }
+
+    function getVotedList() {
+      try {
+        return JSON.parse(localStorage.getItem(VOTES_KEY) || '[]');
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function toggleUrlField() {
+      const type = document.getElementById('req-type-input').value;
+      const wrap = document.getElementById('url-field-wrap');
+      const input = document.getElementById('req-url-input');
+      if (type === 'YOUTUBE_LIVE' || type === 'SONG') {
+        wrap.style.display = 'block';
+      } else {
+        wrap.style.display = 'block';
+      }
+    }
+
+    function filterRequests(filter) {
+      activeFilter = filter;
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      event.target.classList.add('active');
+      renderRequests();
+    }
+
+    function renderRequests() {
+      const container = document.getElementById('requests-container');
+      const votedList = getVotedList();
+
+      let filtered = currentRequests;
+      if (activeFilter === 'YOUTUBE_LIVE') filtered = currentRequests.filter(r => r.type === 'YOUTUBE_LIVE' || (r.title && r.title.includes('Stream')));
+      else if (activeFilter === 'FEATURE') filtered = currentRequests.filter(r => r.type === 'FEATURE');
+      else if (activeFilter === 'SONG') filtered = currentRequests.filter(r => r.type === 'SONG');
+      else if (activeFilter === 'IN_PROGRESS') filtered = currentRequests.filter(r => r.status === 'IN_PROGRESS');
+      else if (activeFilter === 'PLANNED') filtered = currentRequests.filter(r => r.status === 'PLANNED');
+
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div style="grid-column:1/-1; text-align:center; padding:40px; background:var(--bg-card); border-radius:var(--radius-lg);">
+            <div style="font-size:2.5rem; margin-bottom:8px;">💡</div>
+            <h4 style="font-family:'Syne',sans-serif; font-size:1.2rem;">Koi request nahi mili</h4>
+            <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:16px;">Aap pehla request submit karein!</p>
+            <button class="btn btn-gold btn-sm" onclick="openNewRequestModal()">➕ Request Submit Karein</button>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = filtered.map(req => {
+        const isVoted = votedList.includes(req.id);
+        let typeBadge = '<span class="request-type-badge badge-feature">Feature</span>';
+        if (req.type === 'YOUTUBE_LIVE') typeBadge = '<span class="request-type-badge badge-live">🔴 YouTube Live</span>';
+        else if (req.type === 'SONG') typeBadge = '<span class="request-type-badge badge-song">Song</span>';
+        else if (req.type === 'UI') typeBadge = '<span class="request-type-badge badge-ui">UI Enhancement</span>';
+        
+        let statusBadge = '';
+        if (req.status === 'IN_PROGRESS') statusBadge = '<span class="request-status-pill status-in-progress">⚡ In Progress</span>';
+        else if (req.status === 'PLANNED') statusBadge = '<span class="request-status-pill status-planned">🚀 Planned</span>';
+        else statusBadge = '<span class="request-status-pill status-review">💡 Under Review</span>';
+
+        const urlLinkHtml = req.youtubeUrl ? `
+          <div class="request-link-box">
+            <span>🔴 <strong>Live URL:</strong></span>
+            <a href="${escapeHtml(req.youtubeUrl)}" target="_blank">${escapeHtml(req.youtubeUrl)}</a>
+          </div>
+        ` : '';
+
+        return `
+          <div class="request-card reveal-card">
+            <div class="request-card-header">
+              ${typeBadge}
+              ${statusBadge}
+            </div>
+            <h3 class="request-card-title">${escapeHtml(req.title)}</h3>
+            <p class="request-card-desc">${escapeHtml(req.desc)}</p>
+            ${urlLinkHtml}
+            <div class="request-card-footer">
+              <div class="request-user-info">
+                <img src="${escapeHtml(req.authorAvatar)}" class="request-avatar" alt="Avatar"/>
+                <div>
+                  <div class="request-username">${escapeHtml(req.author)}</div>
+                  <div class="request-time">${escapeHtml(req.createdAt)}</div>
+                </div>
+              </div>
+              <button class="upvote-btn ${isVoted ? 'voted' : ''}" onclick="toggleUpvote('${req.id}')">
+                <span>▲</span>
+                <span>${req.votes || 0}</span>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      triggerScrollObserver();
+    }
+
+    function toggleUpvote(reqId) {
+      const votedList = getVotedList();
+      const req = currentRequests.find(r => r.id === reqId);
+      if (!req) return;
+
+      if (votedList.includes(reqId)) {
+        req.votes = Math.max(0, (req.votes || 1) - 1);
+        const next = votedList.filter(id => id !== reqId);
+        localStorage.setItem(VOTES_KEY, JSON.stringify(next));
+      } else {
+        req.votes = (req.votes || 0) + 1;
+        votedList.push(reqId);
+        localStorage.setItem(VOTES_KEY, JSON.stringify(votedList));
+      }
+
+      saveRequests();
+      renderRequests();
+    }
+
+    function openNewRequestModal() {
+      document.getElementById('new-request-modal').classList.add('active');
+    }
+    function closeNewRequestModal() {
+      document.getElementById('new-request-modal').classList.remove('active');
+    }
+
+    function handleRequestSubmit(e) {
+      e.preventDefault();
+      const type = document.getElementById('req-type-input').value;
+      const url = document.getElementById('req-url-input').value.trim();
+      const title = document.getElementById('req-title-input').value.trim();
+      const desc = document.getElementById('req-desc-input').value.trim();
+      const author = document.getElementById('req-name-input').value.trim();
+
+      if (!title || !desc || !author) return;
+
+      const newReq = {
+        id: 'req-' + Date.now(),
+        title,
+        desc,
+        type,
+        status: 'REVIEW',
+        youtubeUrl: url || undefined,
+        author,
+        authorAvatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(author)}`,
+        votes: 1,
+        createdAt: 'Just now'
+      };
+
+      currentRequests.unshift(newReq);
+      saveRequests();
+
+      const votedList = getVotedList();
+      votedList.push(newReq.id);
+      localStorage.setItem(VOTES_KEY, JSON.stringify(votedList));
+
+      closeNewRequestModal();
+      renderRequests();
+
+      alert('Shukriya! Aapka request safaltapoorvak submit ho gaya hai.');
+    }
+
+    function setupScrollAnimations() {
+      window.addEventListener('scroll', () => {
+        const docH = document.documentElement.scrollHeight - window.innerHeight;
+        const progress = docH > 0 ? (window.scrollY / docH) * 100 : 0;
+        document.getElementById('scroll-progress').style.width = progress + '%';
+      }, { passive: true });
+    }
+
+    function triggerScrollObserver() {
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('revealed');
+          }
+        });
+      }, { threshold: 0.1 });
+
+      document.querySelectorAll('.reveal-card').forEach(el => observer.observe(el));
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/[&<>"']/g, function (m) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+      });
+    }
+
+    function toggleMobileMenu() {
+      const menu = document.getElementById('mobile-menu');
+      const burger = document.getElementById('burger-btn');
+      menu.classList.toggle('open');
+      burger.classList.toggle('open');
+    }
+    function closeMobileMenu() {
+      const menu = document.getElementById('mobile-menu');
+      const burger = document.getElementById('burger-btn');
+      if (menu) menu.classList.remove('open');
+      if (burger) burger.classList.remove('open');
+    }
+  </script>
+</body>
+</html>

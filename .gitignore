@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Cloudflare / Backend
+.wrangler/
+*/.wrangler/
+
+# Build outputs
+dist/
+*/dist/
+dist-ios/
+*/dist-ios/
+build/
+*/build/
+web-build/
+*/web-build/
+
+# Expo / Mobile
+.expo/
+*/.expo/
+expo-env.d.ts
+*/expo-env.d.ts
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+.metro-health-check*
+
+# Logs
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+*/.env
+*/.env.local

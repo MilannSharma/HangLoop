@@ -1,0 +1,37 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "hangloop-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2024-02-08",
+  "account_id": "6830038471eb8cb1fb833b197c884a67",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "musiclive",
+      "database_id": "eb46598f-22f1-47e2-93b5-dcef47e997c1"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "R2_BUCKET",
+      "bucket_name": "hangloop-media"
+    }
+  ],
+  "ai": {
+    "binding": "AI"
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "ROOM_DO",
+        "class_name": "RoomDurableObject"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["RoomDurableObject"]
+    }
+  ]
+}

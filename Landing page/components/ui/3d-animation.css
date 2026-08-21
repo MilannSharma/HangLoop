@@ -1,0 +1,218 @@
+/* ══════════════════════════════════════════════════════════════
+   3D POEM / MOVING TEXT ANIMATION — CINEMATIC STYLES
+   Immersive 3D room with perspective grid, ambient hue cycling,
+   background imagery, and character silhouette overlay.
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Base Stage Container ── */
+.hero-section {
+  position: relative;
+  overflow: hidden;
+}
+
+.animation-container {
+  position: relative;
+  width: 100%;
+  max-width: 1000px;
+  margin: 0 auto;
+  perspective: 1200px;
+}
+
+.content {
+  transform-origin: center center;
+  transition: transform 0.25s ease-out;
+}
+
+.container-full {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(180deg, #0A0416 0%, #120822 40%, #0A0416 100%);
+  border: 1px solid rgba(180, 120, 255, 0.35);
+  border-radius: 22px;
+  overflow: hidden;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.9), 0 0 60px rgba(160, 80, 255, 0.12);
+  perspective: 800px;
+}
+
+/* ── Background Scene Image ── */
+.backgroundImage {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.35;
+  z-index: 1;
+  filter: brightness(0.7) contrast(1.2) saturate(1.4);
+  animation: sceneBrightness 12s ease-in-out infinite alternate;
+}
+
+@keyframes sceneBrightness {
+  0% { filter: brightness(0.6) contrast(1.2) saturate(1.3); opacity: 0.3; }
+  100% { filter: brightness(0.8) contrast(1.3) saturate(1.5); opacity: 0.4; }
+}
+
+/* ── Character Silhouette Overlay ── */
+.boyImage {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 85%;
+  z-index: 4;
+  opacity: 0.55;
+  filter: brightness(0.8) contrast(1.3);
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+
+/* ── 3D Perspective Grid Floor ── */
+.stage-grid-floor {
+  position: absolute;
+  bottom: 0;
+  left: -10%;
+  width: 120%;
+  height: 55%;
+  background:
+    linear-gradient(0deg, rgba(160, 80, 255, 0.15) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(160, 80, 255, 0.1) 1px, transparent 1px);
+  background-size: 40px 28px;
+  transform: perspective(400px) rotateX(55deg);
+  transform-origin: bottom center;
+  z-index: 1;
+  opacity: 0.7;
+  mask-image: linear-gradient(to top, rgba(0,0,0,0.6), transparent 80%);
+  -webkit-mask-image: linear-gradient(to top, rgba(0,0,0,0.6), transparent 80%);
+}
+
+/* ── Neon Horizon Glow Line ── */
+.stage-horizon-glow {
+  position: absolute;
+  top: 48%;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: linear-gradient(90deg, transparent 0%, rgba(180, 120, 255, 0.7) 25%, rgba(245, 208, 97, 0.5) 50%, rgba(180, 120, 255, 0.7) 75%, transparent 100%);
+  box-shadow: 0 0 20px rgba(180, 120, 255, 0.5), 0 0 60px rgba(180, 120, 255, 0.2);
+  z-index: 2;
+  filter: blur(1px);
+}
+
+/* ── Ambient Hue Animation ── */
+.animated.hue {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 40%, rgba(160, 80, 255, 0.22), rgba(212, 160, 23, 0.08) 50%, transparent 75%);
+  animation: filter-animation 10s infinite;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* ── 3D Cube Structure ── */
+.cube-container, .container-reflect {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.container-reflect {
+  top: 55%;
+  transform: scaleY(-0.7) rotateX(180deg);
+  opacity: 0.25;
+  filter: blur(5px);
+}
+
+.cube {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transform: translateZ(-240px) rotateX(-6deg) rotateY(12deg);
+}
+
+.face {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  padding: 24px;
+  font-family: 'Syne', sans-serif;
+  font-size: 1.15rem;
+  line-height: 1.5;
+  color: #FFF;
+}
+
+.face.text p {
+  white-space: nowrap;
+  animation: text-glow 4s ease-in-out infinite;
+}
+
+.face.text span {
+  color: #F5D061;
+  font-weight: 800;
+  text-shadow: 0 0 16px rgba(245, 208, 97, 0.35);
+}
+
+.face.left {
+  transform: rotateY(-90deg) translateZ(250px);
+  animation: left 45s linear infinite;
+}
+
+.face.right {
+  transform: rotateY(90deg) translateZ(250px);
+  animation: right 45s linear infinite;
+}
+
+.face.back {
+  transform: rotateY(180deg) translateZ(250px);
+  animation: back 45s linear infinite;
+}
+
+/* ── Keyframe Animations ── */
+@keyframes left {
+  100% { margin-left: -54000px; }
+}
+
+@keyframes back {
+  100% { margin-left: -54870px; }
+}
+
+@keyframes right {
+  100% { margin-left: -55740px; }
+}
+
+@keyframes filter-animation {
+  0%, 100% { filter: hue-rotate(0deg); }
+  50% { filter: hue-rotate(120deg); }
+}
+
+@keyframes zoom-in {
+  0% { transform: scale(1); }
+  100% { transform: scale(2.5); }
+}
+
+@keyframes blur {
+  0% { filter: blur(0px); }
+  100% { filter: blur(3px); }
+}
+
+@keyframes brightness {
+  0% { filter: brightness(1) contrast(1); }
+  100% { filter: brightness(0.8) contrast(1.3); }
+}
+
+@keyframes text-glow {
+  0%, 100% {
+    text-shadow: 0 0 5px rgba(255, 255, 255, 0.2), 0 0 12px rgba(180, 120, 255, 0.15);
+  }
+  50% {
+    text-shadow: 0 0 20px rgba(255, 255, 255, 0.5), 0 0 40px rgba(160, 80, 255, 0.3);
+  }
+}
