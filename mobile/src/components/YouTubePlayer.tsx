@@ -100,6 +100,9 @@ export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({
   const [playerStatus, setPlayerStatus] = useState<RealPlayerStatus>('UNSTARTED');
   const [errorCode, setErrorCode] = useState<number | null>(null);
   const [needUserGesture, setNeedUserGesture] = useState(false);
+  // Force-play toggle: briefly flips play prop false→true to make react-native-youtube-iframe
+  // re-send playVideo() to the WebView (library only calls playVideo on false→true transition)
+  const [forcePlayPaused, setForcePlayPaused] = useState(false);
 
   // ── Auto-hide controls after 3 seconds ──
   const [controlsVisible, setControlsVisible] = useState(true);
@@ -108,6 +111,28 @@ export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({
 
   const activeVideoId = videoId || 'BddP6PYo2gs';
   const loadedVideoRef = useRef<string>('');
+
+  // ── Autoplay retry mechanism for live streams ──
+  // react-native-youtube-iframe's play prop may silently fail for live streams
+  // because the YouTube IFrame API's playVideo() fires before the live buffer is ready.
+  // We detect when the player reports 'paused'/'unstarted' but isPlaying=true and force-retry.
+  const isPlayingRef = useRef(isPlaying);
+  const isLiveStreamRef = useRef(isLiveStream);
+  const autoplayRetryCountRef = useRef(0);
+  const autoplayRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const MAX_AUTOPLAY_RETRIES = 6;
+
+  useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
+  useEffect(() => { isLiveStreamRef.current = isLiveStream; }, [isLiveStream]);
+
+  // Reset retry count when videoId changes (new video loaded)
+  useEffect(() => {
+    autoplayRetryCountRef.current = 0;
+    if (autoplayRetryTimerRef.current) {
+      clearTimeout(autoplayRetryTimerRef.current);
+      autoplayRetryTimerRef.current = null;
+    }
+  }, [activeVideoId]);
 
   const resetHideTimer = useCallback(() => {
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
@@ -339,23 +364,79 @@ export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({
   }, [seekPosition, isLiveStream]);
 
   // ──────────────────────────────────────────────────────────────
-  // 4. Native State Handlers
+  // 4. Native State Handlers (with autoplay retry for live streams)
   // ──────────────────────────────────────────────────────────────
+
+  // Helper: schedule a retry to force-play if the player auto-paused
+  const scheduleAutoplayRetry = useCallback(() => {
+    if (autoplayRetryCountRef.current >= MAX_AUTOPLAY_RETRIES) return;
+    if (!isPlayingRef.current || !playerReadyRef.current) return;
+    if (autoplayRetryTimerRef.current) clearTimeout(autoplayRetryTimerRef.current);
+
+    // Escalating delay: 800ms → 1.2s → 2s → 3s → 5s → 8s
+    const delays = [800, 1200, 2000, 3000, 5000, 8000];
+    const delay = delays[Math.min(autoplayRetryCountRef.current, delays.length - 1)];
+
+    autoplayRetryTimerRef.current = setTimeout(() => {
+      autoplayRetryTimerRef.current = null;
+      if (!isPlayingRef.current || !playerReadyRef.current) return;
+
+      autoplayRetryCountRef.current++;
+      console.log(`[YT Autoplay Retry] Attempt ${autoplayRetryCountRef.current}/${MAX_AUTOPLAY_RETRIES} — forcing playVideo()`);
+
+      if (Platform.OS === 'web') {
+        const player = webPlayerInstanceRef.current;
+        if (player && typeof player.playVideo === 'function') {
+          try {
+            player.playVideo();
+            if (typeof player.unMute === 'function') player.unMute();
+          } catch (e) {}
+        }
+      } else {
+        // Native: react-native-youtube-iframe only calls playVideo() when
+        // the play prop transitions false→true. We briefly set play=false
+        // then back to true to force this transition.
+        setForcePlayPaused(true);
+        setTimeout(() => setForcePlayPaused(false), 100);
+      }
+    }, delay);
+  }, []);
+
   const handleNativeStateChange = useCallback((state: string) => {
     console.log('[Native YT State]:', state);
     if (state === 'playing') {
       setPlayerStatus('PLAYING');
       setErrorCode(null);
       setNeedUserGesture(false);
+      // Player is actually playing — cancel any pending retry
+      autoplayRetryCountRef.current = MAX_AUTOPLAY_RETRIES; // stop retries
+      if (autoplayRetryTimerRef.current) {
+        clearTimeout(autoplayRetryTimerRef.current);
+        autoplayRetryTimerRef.current = null;
+      }
     } else if (state === 'paused') {
-      setPlayerStatus('PAUSED');
+      // CRITICAL FIX: If we want the video playing but the player paused itself,
+      // schedule a retry. This happens with live streams that buffer-then-pause.
+      if (isPlayingRef.current && playerReadyRef.current && autoplayRetryCountRef.current < MAX_AUTOPLAY_RETRIES) {
+        console.log('[Native YT State] Player auto-paused but isPlaying=true — scheduling retry');
+        setPlayerStatus('BUFFERING'); // show buffering, not paused (user expects it to load)
+        scheduleAutoplayRetry();
+      } else {
+        setPlayerStatus('PAUSED');
+      }
     } else if (state === 'buffering') {
       setPlayerStatus('BUFFERING');
+    } else if (state === 'unstarted') {
+      // Live streams may report 'unstarted' — treat as buffering and schedule retry
+      if (isPlayingRef.current && playerReadyRef.current && autoplayRetryCountRef.current < MAX_AUTOPLAY_RETRIES) {
+        setPlayerStatus('BUFFERING');
+        scheduleAutoplayRetry();
+      }
     } else if (state === 'ended') {
       setPlayerStatus('ENDED');
       if (onTrackEndedRef.current) onTrackEndedRef.current();
     }
-  }, []);
+  }, [scheduleAutoplayRetry]);
 
   const handleNativeError = useCallback((error: string) => {
     console.warn('[Native YT Error]:', error, 'video:', activeVideoId);
@@ -373,16 +454,29 @@ export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({
     setPlayerStatus('PLAYING');
     setErrorCode(null);
     setNeedUserGesture(false);
+    autoplayRetryCountRef.current = 0; // reset retries for this video
+
     // Instant Auto Live-Seek on entry (only for catalog tracks with real seek offset)
     if (!isLiveStream && seekPosition > 0) {
       try {
         (nativePlayerRef.current as any)?.seekTo(Math.floor(seekPosition), true);
       } catch (e) {}
     }
-  }, [seekPosition, isLiveStream]);
+
+    // Schedule a verification check — ensure the player ACTUALLY started playing
+    // after the YouTube IFrame API reports ready. Live streams often report ready
+    // but then fail to start playback immediately.
+    if (isPlayingRef.current) {
+      setTimeout(() => {
+        if (!isPlayingRef.current || !playerReadyRef.current) return;
+        // If status hasn't reached PLAYING yet, trigger retry cycle
+        scheduleAutoplayRetry();
+      }, 1500);
+    }
+  }, [seekPosition, isLiveStream, scheduleAutoplayRetry]);
 
   // ──────────────────────────────────────────────────────────────
-  // 5. Play/Pause Sync
+  // 5. Play/Pause Sync (Web + Native autoplay enforcement)
   // ──────────────────────────────────────────────────────────────
   useEffect(() => {
     if (Platform.OS === 'web') {
@@ -397,8 +491,23 @@ export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({
           }
         } catch (e) {}
       }
+    } else {
+      // Native: When isPlaying becomes true, reset retry counter so autoplay
+      // retry mechanism can kick in if the player doesn't start
+      if (isPlaying && playerReadyRef.current) {
+        autoplayRetryCountRef.current = 0;
+      }
     }
   }, [isPlaying]);
+
+  // Cleanup retry timer on unmount
+  useEffect(() => {
+    return () => {
+      if (autoplayRetryTimerRef.current) {
+        clearTimeout(autoplayRetryTimerRef.current);
+      }
+    };
+  }, []);
 
   // ──────────────────────────────────────────────────────────────
   // Handlers
@@ -502,7 +611,7 @@ export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({
             <YoutubePlayer
               ref={nativePlayerRef}
               height={isListenOnly ? 1 : containerHeight}
-              play={isPlaying && !isStreamEnded}
+              play={isPlaying && !isStreamEnded && !forcePlayPaused}
               videoId={activeVideoId}
               webViewProps={{
                 allowsInlineMediaPlayback: true,
