@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { ArrowRight, Download } from 'lucide-react';
 import { User } from '../types';
+import { useDownloadCounts } from '../utils/downloadStats';
 
 /* ---------------- WavyLetterAnimation ---------------- */
 interface WavyTitleProps {
@@ -62,6 +63,7 @@ interface HeroProps {
 }
 
 export default function HeroSection({ onOpenDownload }: HeroProps) {
+  const { apkCount, iosCount } = useDownloadCounts();
   return (
     <section className="prisma-hero-container">
       <div className="prisma-hero-card">
@@ -124,6 +126,18 @@ export default function HeroSection({ onOpenDownload }: HeroProps) {
                   <span>Download App</span>
                 </button>
               </motion.div>
+
+              {/* Social Proof Download Counters */}
+              <motion.div
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ duration: 0.8, delay: 0.6, ease: [0.16, 1, 0.3, 1] }}
+                className="hero-download-proof"
+              >
+                <span className="proof-tag">🔥 <strong>{apkCount}+</strong> Android Downloads</span>
+                <span className="proof-divider">•</span>
+                <span className="proof-tag">📱 <strong>{iosCount}+</strong> iOS Installs</span>
+              </motion.div>
             </div>
 
           </div>
@@ -140,8 +154,8 @@ export default function HeroSection({ onOpenDownload }: HeroProps) {
               <div className="ticker-item"><span style={{ color: 'rgba(225,224,204,0.55)' }}>⚡ ZERO-LAG CLOUDFLARE EDGE</span></div>
               <div className="ticker-item"><span style={{ color: '#E1E0CC' }}>🎶 LISTEN TOGETHER IN LIVE ROOMS</span></div>
               <div className="ticker-item"><span style={{ color: 'rgba(225,224,204,0.55)' }}>🎧 BACKGROUND AUDIO PLAY ON MOBILE</span></div>
-              <div className="ticker-item"><span style={{ color: '#E1E0CC' }}>🔥 LIVE CHAT &amp; EMOJI REACTIONS</span></div>
-              <div className="ticker-item"><span style={{ color: 'rgba(225,224,204,0.55)' }}>📱 ANDROID APK &bull; IOS WEB APP</span></div>
+              <div className="ticker-item"><span style={{ color: '#E1E0CC' }}>🔥 {apkCount}+ ANDROID APK DOWNLOADS</span></div>
+              <div className="ticker-item"><span style={{ color: 'rgba(225,224,204,0.55)' }}>📱 {iosCount}+ IOS USERS</span></div>
             </span>
           ))}
         </div>

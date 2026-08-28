@@ -1,6 +1,7 @@
 import React from 'react'
 import { Smartphone, Apple, Download, AlertTriangle, ShieldAlert } from 'lucide-react'
 import { GITHUB_ANDROID_APK, GITHUB_IOS_ZIP } from '../config'
+import { useDownloadCounts } from '../utils/downloadStats'
 
 interface Props {
   open: boolean
@@ -8,7 +9,10 @@ interface Props {
 }
 
 export default function MobileRestrictedModal({ open, onClose }: Props) {
+  const { apkCount, iosCount, incrementApkDownload, incrementIosDownload } = useDownloadCounts()
+
   const triggerAndroid = () => {
+    incrementApkDownload()
     const link = document.createElement('a')
     link.href = GITHUB_ANDROID_APK
     link.download = 'Hangloop.apk'
@@ -18,6 +22,7 @@ export default function MobileRestrictedModal({ open, onClose }: Props) {
   }
 
   const triggerIos = () => {
+    incrementIosDownload()
     const link = document.createElement('a')
     link.href = GITHUB_IOS_ZIP
     link.download = 'hangloop-v1.0.0-ios.zip'
@@ -65,12 +70,12 @@ export default function MobileRestrictedModal({ open, onClose }: Props) {
                 </div>
                 <div style={{ flex: 1 }}>
                   <div className="download-opt-title">Official Android App (APK)</div>
-                  <div className="download-opt-sub">Background Audio Play &bull; Android 7.0+</div>
+                  <div className="download-opt-sub">Background Audio Play &bull; {apkCount}+ Downloads</div>
                 </div>
               </div>
               <button className="btn btn-gold btn-full mt-2" onClick={triggerAndroid}>
                 <Download className="w-4 h-4" />
-                <span>Download Android APK (68 MB)</span>
+                <span>Download Android APK ({apkCount}+ downloads)</span>
               </button>
             </div>
 
@@ -82,12 +87,12 @@ export default function MobileRestrictedModal({ open, onClose }: Props) {
                 </div>
                 <div style={{ flex: 1 }}>
                   <div className="download-opt-title">iPhone / iOS App</div>
-                  <div className="download-opt-sub">iOS 15+ &bull; Standalone Package</div>
+                  <div className="download-opt-sub">iOS 15+ &bull; {iosCount}+ Installs</div>
                 </div>
               </div>
               <button className="btn btn-ghost btn-full mt-2" onClick={triggerIos}>
                 <Download className="w-4 h-4" />
-                <span>Download for iOS (ZIP)</span>
+                <span>Download for iOS ({iosCount}+ active)</span>
               </button>
             </div>
           </div>

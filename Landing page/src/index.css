@@ -3229,3 +3229,66 @@ body {
     padding: 20px 16px;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════
+   DOWNLOAD COUNT PILLS & SOCIAL PROOF BADGES
+══════════════════════════════════════════════════════════════ */
+.badge-gold-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(225, 224, 204, 0.12);
+  color: #E1E0CC;
+  border: 1px solid rgba(225, 224, 204, 0.25);
+}
+
+.count-pill-gold {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.15);
+  color: #F59E0B;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.count-pill-ios {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(59, 130, 246, 0.15);
+  color: #60A5FA;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.hero-download-proof {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(18, 20, 26, 0.75);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(225, 224, 204, 0.15);
+  font-size: 0.8rem;
+  color: rgba(225, 224, 204, 0.85);
+}
+
+.hero-download-proof strong {
+  color: #E1E0CC;
+  font-weight: 700;
+}
+
+.proof-divider {
+  opacity: 0.35;
+}

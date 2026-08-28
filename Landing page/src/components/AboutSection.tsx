@@ -1,5 +1,6 @@
 import { useScrollReveal } from '../hooks/useScrollMotion'
-import { Radio, Bot, Disc3, Users, Sparkles, Heart, Shield, ArrowRight, Music2 } from 'lucide-react'
+import { Radio, Bot, Disc3, Users, Sparkles, Smartphone, Apple, ArrowRight } from 'lucide-react'
+import { useDownloadCounts } from '../utils/downloadStats'
 
 interface Props {
   onOpenDownload: () => void
@@ -7,6 +8,7 @@ interface Props {
 
 export default function AboutSection({ onOpenDownload }: Props) {
   useScrollReveal()
+  const { apkCount, iosCount } = useDownloadCounts()
 
   return (
     <section id="about" className="section-wrap" style={{ position: 'relative' }}>
@@ -45,8 +47,12 @@ export default function AboutSection({ onOpenDownload }: Props) {
                   <span className="about-stat-lbl">Curated Live Stations</span>
                 </div>
                 <div className="about-stat-item">
-                  <span className="about-stat-val">100%</span>
-                  <span className="about-stat-lbl">Free Community App</span>
+                  <span className="about-stat-val">{apkCount}+</span>
+                  <span className="about-stat-lbl">APK Downloads</span>
+                </div>
+                <div className="about-stat-item">
+                  <span className="about-stat-val">{iosCount}+</span>
+                  <span className="about-stat-lbl">iOS Installs</span>
                 </div>
               </div>
             </div>
@@ -151,12 +157,17 @@ export default function AboutSection({ onOpenDownload }: Props) {
             <span className="section-label">❤️ Built with Passion</span>
             <h3 className="about-cta-title">Ready to Experience the Hangloop Vibe?</h3>
             <p className="about-cta-desc">
-              Join thousands of listeners enjoying synchronized live stations, real-time chat, and AI banter on the official Hangloop Android App.
+              Join {apkCount + iosCount}+ listeners enjoying synchronized live stations, real-time chat, and AI banter on the official Hangloop Android &amp; iOS Apps.
             </p>
             <div className="about-cta-actions">
               <button className="btn btn-gold" onClick={onOpenDownload}>
-                <span>Download Hangloop Official APK</span>
+                <Smartphone className="w-4 h-4" />
+                <span>Download Android APK ({apkCount}+ downloads)</span>
                 <ArrowRight className="w-4 h-4" />
+              </button>
+              <button className="btn btn-ghost" onClick={onOpenDownload}>
+                <Apple className="w-4 h-4" />
+                <span>Get for iPhone ({iosCount}+ active)</span>
               </button>
             </div>
           </div>
