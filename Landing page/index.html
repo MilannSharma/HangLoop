@@ -2,19 +2,132 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>Hangloop — Live Synchronized Music Rooms | Doston Ke Saath Suno</title>
-  <meta name="description" content="Hangloop par doston ke saath synchronized live YouTube music suno. Real-time chat, animated reactions, aur background audio playback."/>
-  <meta property="og:title" content="Hangloop — Live Music Rooms | Listen Together in Sync"/>
-  <meta property="og:description" content="Synchronized live music rooms. Real-time chat. Direct web playback & mobile apps for Android & iOS."/>
-  <meta property="og:type" content="website"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
+  
+  <!-- Primary Meta Tags -->
+  <title>Hangloop — Listen to Music Together With Friends in Real Time</title>
+  <meta name="title" content="Hangloop — Listen to Music Together With Friends in Real Time"/>
+  <meta name="description" content="Hangloop lets you listen to music together with friends online in real time. Join synchronized 24/7 music rooms with zero-lag Cloudflare Edge playback, live chat, and AI hosts."/>
+  <meta name="keywords" content="hangloop, listen to music together, listen to music with friends online, music rooms, synchronized music listening, synced music with friends, listen together with friends, online music room, virtual music room, real time music synchronization, listen to songs with friends"/>
+  <meta name="author" content="Hangloop Network"/>
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"/>
+  <link rel="canonical" href="https://hang-loop.vercel.app/"/>
+
+  <!-- Theme & PWA -->
+  <meta name="theme-color" content="#060709"/>
+  <meta name="msapplication-TileColor" content="#060709"/>
+  <link rel="manifest" href="/site.webmanifest"/>
   <link rel="icon" type="image/png" href="/logo-gold.png"/>
+  <link rel="apple-touch-icon" href="/logo-gold.png"/>
+
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website"/>
+  <meta property="og:url" content="https://hang-loop.vercel.app/"/>
+  <meta property="og:site_name" content="Hangloop"/>
+  <meta property="og:title" content="Hangloop — Listen to Music Together With Friends in Real Time"/>
+  <meta property="og:description" content="Hangloop lets you listen to music together with friends online in real time. Join synchronized 24/7 music rooms with zero-lag Cloudflare Edge playback, live chat, and AI hosts."/>
+  <meta property="og:image" content="https://hang-loop.vercel.app/logo-gold.png"/>
+  <meta property="og:image:width" content="1200"/>
+  <meta property="og:image:height" content="630"/>
+  <meta property="og:image:alt" content="Hangloop — Live Synchronized Music Rooms"/>
+  <meta property="og:locale" content="en_US"/>
+
+  <!-- Twitter / X -->
+  <meta name="twitter:card" content="summary_large_image"/>
+  <meta name="twitter:url" content="https://hang-loop.vercel.app/"/>
+  <meta name="twitter:title" content="Hangloop — Listen to Music Together With Friends in Real Time"/>
+  <meta name="twitter:description" content="Listen to music together with friends online in synchronized rooms. Sub-50ms sync, live chat, AI hosts, and continuous background audio on mobile."/>
+  <meta name="twitter:image" content="https://hang-loop.vercel.app/logo-gold.png"/>
+  <meta name="twitter:image:alt" content="Hangloop Synchronized Music Rooms"/>
+
+  <!-- Preconnect & DNS-Prefetch for Performance -->
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link rel="preconnect" href="https://images.unsplash.com"/>
+  <link rel="preconnect" href="https://hangloop-api.milansharma942105.workers.dev"/>
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+
+  <!-- Structured Data: Organization, WebSite & WebApplication -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": "https://hang-loop.vercel.app/#organization",
+        "name": "Hangloop",
+        "url": "https://hang-loop.vercel.app",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://hang-loop.vercel.app/logo-gold.png",
+          "width": "512",
+          "height": "512"
+        },
+        "sameAs": [
+          "https://github.com/MilannSharma/HangLoop",
+          "https://www.youtube.com/@TheMilanSharma"
+        ]
+      },
+      {
+        "@type": "WebSite",
+        "@id": "https://hang-loop.vercel.app/#website",
+        "url": "https://hang-loop.vercel.app",
+        "name": "Hangloop",
+        "publisher": {
+          "@id": "https://hang-loop.vercel.app/#organization"
+        },
+        "description": "Listen to music together with friends online in real-time synchronized music rooms.",
+        "potentialAction": {
+          "@type": "SearchAction",
+          "target": "https://hang-loop.vercel.app/requests?q={search_term_string}",
+          "query-input": "required name=search_term_string"
+        }
+      },
+      {
+        "@type": "WebApplication",
+        "@id": "https://hang-loop.vercel.app/#webapp",
+        "name": "Hangloop",
+        "applicationCategory": "MultimediaApplication",
+        "operatingSystem": "Web, Android, iOS",
+        "url": "https://hang-loop.vercel.app",
+        "description": "Hangloop is a real-time synchronized music listening platform that lets friends join online rooms and listen to music together in sync with sub-50ms drift, live chat, and AI hosts.",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        }
+      }
+    ]
+  }
+  </script>
 </head>
 <body>
   <div id="root"></div>
+
+  <!-- Noscript Semantic Crawler Fallback for AI & Search Engines -->
+  <noscript>
+    <div style="padding: 30px; font-family: sans-serif; background: #060709; color: #E1E0CC; line-height: 1.6;">
+      <h1>Hangloop — Listen to Music Together With Friends in Real Time</h1>
+      <p>Hangloop is a web platform and mobile app that enables friends and music lovers worldwide to listen to music together in real-time synchronized online music rooms. Featuring sub-50ms audio sync powered by Cloudflare Edge, 24/7 curated live radio stations, background playback, live chat, animated reaction showers, and AI room hosts.</p>
+      <h2>Explore Hangloop</h2>
+      <ul>
+        <li><a href="/listen-to-music-with-friends" style="color: #E1E0CC;">Listen to Music With Friends Online</a></li>
+        <li><a href="/music-rooms" style="color: #E1E0CC;">Synchronized Music Rooms &amp; 24/7 Stations</a></li>
+        <li><a href="/synchronized-music" style="color: #E1E0CC;">How Real-Time Synchronized Music Playback Works</a></li>
+        <li><a href="/how-it-works" style="color: #E1E0CC;">How Hangloop Works: Create &amp; Join Music Rooms</a></li>
+        <li><a href="/features" style="color: #E1E0CC;">Hangloop Features &amp; Platform Capabilities</a></li>
+        <li><a href="/faq" style="color: #E1E0CC;">Frequently Asked Questions (FAQ)</a></li>
+        <li><a href="/about" style="color: #E1E0CC;">About Hangloop</a></li>
+        <li><a href="/requests" style="color: #E1E0CC;">Feature &amp; Stream Requests</a></li>
+        <li><a href="/changelog" style="color: #E1E0CC;">Product Changelog &amp; Releases</a></li>
+        <li><a href="/contact" style="color: #E1E0CC;">Contact &amp; Support</a></li>
+        <li><a href="/privacy" style="color: #E1E0CC;">Privacy Policy</a></li>
+        <li><a href="/terms" style="color: #E1E0CC;">Terms of Service</a></li>
+      </ul>
+    </div>
+  </noscript>
+
   <script src="https://www.youtube.com/iframe_api"></script>
   <script type="module" src="/src/main.tsx"></script>
 </body>

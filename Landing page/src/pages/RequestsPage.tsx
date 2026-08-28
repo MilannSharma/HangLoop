@@ -2,6 +2,8 @@ import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useScrollReveal } from '../hooks/useScrollMotion'
 import { getAvatarUrl } from '../utils/helpers'
+import SEOHead from '../components/SEOHead'
+import Breadcrumbs from '../components/Breadcrumbs'
 import { Plus, Search, Sparkles, ExternalLink, ThumbsUp, Radio, Music, Layout, ArrowLeft } from 'lucide-react'
 
 interface RequestItem {
@@ -201,19 +203,27 @@ export default function RequestsPage() {
   })
 
   return (
-    <main style={{ paddingTop: '80px' }}>
-      {/* Requests Hero */}
-      <section className="requests-hero">
-        <div className="container">
-          <span className="requests-badge">Community Roadmap &amp; Stream Requests</span>
-          <h1 className="display requests-title">
-            Feature &amp; Live Stream Roadmap
-          </h1>
-          <p className="requests-sub">
-            Shape the future of Hangloop. Request your favorite YouTube live streams, propose new features, and upvote community ideas.
-          </p>
-        </div>
-      </section>
+    <>
+      <SEOHead
+        title="Feature & YouTube Live Stream Roadmap | Hangloop"
+        description="Submit your favorite YouTube live streams, suggest new features, and upvote community ideas on the official Hangloop roadmap."
+        canonicalUrl="https://hang-loop.vercel.app/requests"
+        keywords="hangloop roadmap, live stream request, youtube live request, hangloop features"
+      />
+      <main style={{ paddingTop: '80px' }}>
+        {/* Requests Hero */}
+        <section className="requests-hero">
+          <div className="container">
+            <Breadcrumbs items={[{ name: 'Requests & Roadmap', path: '/requests' }]} />
+            <span className="requests-badge">Community Roadmap &amp; Stream Requests</span>
+            <h1 className="display requests-title">
+              Feature &amp; Live Stream Roadmap
+            </h1>
+            <p className="requests-sub">
+              Shape the future of Hangloop. Request your favorite YouTube live streams, propose new features, and upvote community ideas.
+            </p>
+          </div>
+        </section>
 
       {/* Main Content */}
       <section style={{ paddingBottom: '60px' }}>
@@ -429,5 +439,6 @@ export default function RequestsPage() {
         </div>
       </div>
     </main>
+    </>
   )
 }

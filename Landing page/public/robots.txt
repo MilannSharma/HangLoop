@@ -1,0 +1,53 @@
+# ==============================================================================
+# Hangloop Official robots.txt
+# Platform: Hangloop — Live Synchronized Music Rooms
+# Website: https://hang-loop.vercel.app/
+# ==============================================================================
+
+User-agent: *
+Allow: /
+Allow: /about
+Allow: /how-it-works
+Allow: /listen-to-music-with-friends
+Allow: /music-rooms
+Allow: /synchronized-music
+Allow: /features
+Allow: /faq
+Allow: /requests
+Allow: /changelog
+Allow: /contact
+Allow: /privacy
+Allow: /terms
+
+# Block private room sessions, user-specific temporary state, and internal APIs
+Disallow: /api/
+Disallow: /room/private/
+Disallow: /admin/
+Disallow: /*?*token=
+Disallow: /*?*auth=
+Disallow: /*?*session=
+
+# Specific AI and Search Engine Crawlers
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: Applebot
+Allow: /
+
+User-agent: GPTBot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+# Sitemap Location
+Sitemap: https://hang-loop.vercel.app/sitemap.xml

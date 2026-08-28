@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9
+        http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">
+
+  <!-- Homepage -->
+  <url>
+    <loc>https://hang-loop.vercel.app/</loc>
+    <lastmod>2026-08-28</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+
+  <!-- Core Topical Pillar 1: Listen Together -->
+  <url>
+    <loc>https://hang-loop.vercel.app/listen-to-music-with-friends</loc>
+    <lastmod>2026-08-28</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.95</priority>
+  </url>
+
+  <!-- Core Topical Pillar 2: Music Rooms -->
+  <url>
+    <loc>https://hang-loop.vercel.app/music-rooms</loc>
+    <lastmod>2026-08-28</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.90</priority>
+  </url>
+
+  <!-- Core Topical Pillar 3: Synchronized Music Tech -->
+  <url>
+    <loc>https://hang-loop.vercel.app/synchronized-music</loc>
+    <lastmod>2026-08-28</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.90</priority>
+  </url>
+
+  <!-- How It Works Guide -->
+  <url>
+    <loc>https://hang-loop.vercel.app/how-it-works</loc>
+    <lastmod>2026-08-28</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+
+  <!-- Features & Capabilities -->
+  <url>
+    <loc>https://hang-loop.vercel.app/features</loc>
+    <lastmod>2026-08-28</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+
+  <!-- FAQ (Answer Engine Optimized) -->
+  <url>
+    <loc>https://hang-loop.vercel.app/faq</loc>
+    <lastmod>2026-08-28</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+
+  <!-- About Hangloop & Mission -->
+  <url>
+    <loc>https://hang-loop.vercel.app/about</loc>
+    <lastmod>2026-08-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.80</priority>
+  </url>
+
+  <!-- Community Requests & Roadmap -->
+  <url>
+    <loc>https://hang-loop.vercel.app/requests</loc>
+    <lastmod>2026-08-28</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.80</priority>
+  </url>
+
+  <!-- Product Changelog -->
+  <url>
+    <loc>https://hang-loop.vercel.app/changelog</loc>
+    <lastmod>2026-08-28</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.75</priority>
+  </url>
+
+  <!-- Contact & Community -->
+  <url>
+    <loc>https://hang-loop.vercel.app/contact</loc>
+    <lastmod>2026-08-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.70</priority>
+  </url>
+
+  <!-- Legal: Privacy Policy -->
+  <url>
+    <loc>https://hang-loop.vercel.app/privacy</loc>
+    <lastmod>2026-08-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.50</priority>
+  </url>
+
+  <!-- Legal: Terms of Service -->
+  <url>
+    <loc>https://hang-loop.vercel.app/terms</loc>
+    <lastmod>2026-08-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.50</priority>
+  </url>
+
+</urlset>

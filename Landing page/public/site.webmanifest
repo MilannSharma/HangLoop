@@ -1,0 +1,25 @@
+{
+  "name": "Hangloop — Live Synchronized Music Rooms",
+  "short_name": "Hangloop",
+  "description": "Listen to music together with friends online in real time with sub-50ms synchronized audio, live chat, and AI hosts.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#060709",
+  "theme_color": "#E1E0CC",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/logo-gold.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/logo-gold.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["music", "entertainment", "social"]
+}
