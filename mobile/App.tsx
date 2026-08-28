@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, StatusBar, BackHandler, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, StatusBar, BackHandler, ActivityIndicator } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
 import { UserProfile, RoomData, api } from './src/services/api';
@@ -183,11 +183,53 @@ function MainAppContent() {
   );
 }
 
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class RootErrorBoundary extends React.Component<{ children: React.ReactNode }, ErrorBoundaryState> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: any) {
+    console.error('RootErrorBoundary caught unhandled error:', error, errorInfo);
+  }
+
+  handleReset = () => {
+    this.setState({ hasError: false, error: null });
+  };
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={styles.errorContainer}>
+          <StatusBar barStyle="light-content" backgroundColor="#0A0A0A" />
+          <Text style={styles.errorTitle}>Hangloop Recovery</Text>
+          <Text style={styles.errorDetails}>{this.state.error?.message || 'A temporary error occurred.'}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={this.handleReset}>
+            <Text style={styles.retryButtonText}>Reload App</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function App() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <MainAppContent />
+        <RootErrorBoundary>
+          <MainAppContent />
+        </RootErrorBoundary>
       </ThemeProvider>
     </SafeAreaProvider>
   );
@@ -201,5 +243,35 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  errorContainer: {
+    flex: 1,
+    backgroundColor: '#0A0A0A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  errorTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#D4AF37',
+    marginBottom: 12,
+  },
+  errorDetails: {
+    fontSize: 14,
+    color: '#A0A0A0',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  retryButton: {
+    backgroundColor: '#D4AF37',
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  retryButtonText: {
+    color: '#0A0A0A',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });

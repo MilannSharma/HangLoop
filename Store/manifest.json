@@ -11,7 +11,7 @@
     "minSdkVersion": 24,
     "targetSdkVersion": 36,
     "fileSize": "65.2 MB",
-    "sha256": "25E5413920DC22BDDF95DEDF87133977FCCEBF7AF2EB89A273620DCD84FE694D",
+    "sha256": "0A7CDC72C753B652D34F4AEEAC5C379404B0FD0C191B841EEE32C09C069D172A",
     "architecture": "Universal (arm64-v8a, armeabi-v7a, x86_64)"
   },
   "ios": {
