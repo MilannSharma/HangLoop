@@ -1,17 +1,12 @@
 import { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { User } from '../types'
-import { getAvatarUrl } from '../utils/helpers'
-import { Download, LogIn, Sparkles, Radio, MessageSquare } from 'lucide-react'
+import { Download } from 'lucide-react'
 
 interface NavbarProps {
-  currentUser: User | null
-  onOpenAuth: (tab?: 'login' | 'register') => void
   onOpenDownload: () => void
-  onLogout: () => void
 }
 
-export default function Navbar({ currentUser, onOpenAuth, onOpenDownload, onLogout }: NavbarProps) {
+export default function Navbar({ onOpenDownload }: NavbarProps) {
   const [scrolled, setScrolled] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const location = useLocation()
@@ -79,25 +74,8 @@ export default function Navbar({ currentUser, onOpenAuth, onOpenDownload, onLogo
             </Link>
           </nav>
 
-          {/* Actions: Login & Download App */}
+          {/* Actions: Download App */}
           <div className="prisma-nav-actions">
-            {currentUser ? (
-              <div className="nav-user-pill" title={`Logged in as ${currentUser.username}`} onClick={onLogout}>
-                <img
-                  src={currentUser.avatar_url || getAvatarUrl(currentUser.username)}
-                  className="nav-user-avatar"
-                  alt={currentUser.username}
-                />
-                <span className="nav-user-name">{currentUser.full_name || currentUser.username}</span>
-                <span style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>▾</span>
-              </div>
-            ) : (
-              <button className="prisma-nav-btn-ghost" onClick={() => onOpenAuth('login')}>
-                <LogIn className="w-3.5 h-3.5" />
-                <span>Login</span>
-              </button>
-            )}
-
             <button className="prisma-nav-btn-primary" onClick={onOpenDownload}>
               <Download className="w-3.5 h-3.5" />
               <span>Get App</span>
@@ -119,36 +97,18 @@ export default function Navbar({ currentUser, onOpenAuth, onOpenDownload, onLogo
 
       {/* Mobile Menu Drawer */}
       <div className={`mobile-nav${mobileOpen ? ' open' : ''}`}>
-        <a href="#live-streams" onClick={closeMobile}>🔴 Live Rooms Dekho</a>
+        <a href="#live-streams" onClick={closeMobile}>🔴 Live Rooms Status</a>
         <a href="#request-stream" onClick={closeMobile}>✨ Request YouTube Live</a>
         <a href="#feedback" onClick={closeMobile}>⭐ Listeners Feedback</a>
         <Link to="/requests" onClick={closeMobile}>💡 Feature Requests</Link>
         <div style={{ display: 'flex', gap: '10px', marginTop: '10px', flexDirection: 'column' }}>
-          {!currentUser ? (
-            <button
-              className="btn btn-ghost"
-              onClick={() => { closeMobile(); onOpenAuth('login'); }}
-              style={{ width: '100%' }}
-            >
-              <LogIn className="w-4 h-4" />
-              <span>Login</span>
-            </button>
-          ) : (
-            <button
-              className="btn btn-ghost"
-              onClick={() => { closeMobile(); onLogout(); }}
-              style={{ width: '100%' }}
-            >
-              <span>Logout ({currentUser.username})</span>
-            </button>
-          )}
           <button
             className="btn btn-gold"
             onClick={() => { closeMobile(); onOpenDownload(); }}
             style={{ width: '100%' }}
           >
             <Download className="w-4 h-4" />
-            <span>App Download Karo</span>
+            <span>Download Hangloop APK</span>
           </button>
         </div>
       </div>

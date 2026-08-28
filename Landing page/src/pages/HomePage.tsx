@@ -6,18 +6,15 @@ import FeedbackSection from '../components/FeedbackSection'
 import FeaturesSection from '../components/FeaturesSection'
 import SpotlightSection from '../components/SpotlightSection'
 import Footer from '../components/Footer'
-import { LiveRoom, User } from '../types'
+import { LiveRoom } from '../types'
 import { API_BASE } from '../config'
 
 interface Props {
   onOpenDownload: () => void
   onOpenFeedback: () => void
-  onJoinStream: (roomId: string, rooms: LiveRoom[]) => void
-  currentUser: User | null
-  onOpenAuth?: (tab?: 'login' | 'register') => void
 }
 
-export default function HomePage({ onOpenDownload, onOpenFeedback, onJoinStream, currentUser, onOpenAuth }: Props) {
+export default function HomePage({ onOpenDownload, onOpenFeedback }: Props) {
   const [rooms, setRooms] = useState<LiveRoom[]>([])
 
   const fetchRooms = useCallback(async () => {
@@ -44,12 +41,8 @@ export default function HomePage({ onOpenDownload, onOpenFeedback, onJoinStream,
 
   return (
     <main>
-      <HeroSection
-        onOpenDownload={onOpenDownload}
-        onOpenAuth={onOpenAuth}
-        currentUser={currentUser}
-      />
-      <LiveStreamsSection rooms={rooms} onJoinStream={id => onJoinStream(id, rooms)} onRefresh={fetchRooms} />
+      <HeroSection onOpenDownload={onOpenDownload} />
+      <LiveStreamsSection rooms={rooms} onOpenDownload={onOpenDownload} onRefresh={fetchRooms} />
       <RequestStreamSection />
       <FeedbackSection onOpenFeedback={onOpenFeedback} />
       <FeaturesSection />

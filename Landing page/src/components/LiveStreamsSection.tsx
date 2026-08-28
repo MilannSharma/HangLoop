@@ -1,15 +1,15 @@
 import { LiveRoom } from '../types'
 import { getThumbnail } from '../utils/helpers'
 import { useScrollRevealOnUpdate } from '../hooks/useScrollMotion'
-import { Play, Users, Radio, RotateCw, Sparkles } from 'lucide-react'
+import { Smartphone, Users, Radio, RotateCw, Sparkles, Download } from 'lucide-react'
 
 interface Props {
   rooms: LiveRoom[]
-  onJoinStream: (roomId: string) => void
+  onOpenDownload: () => void
   onRefresh: () => void
 }
 
-export default function LiveStreamsSection({ rooms, onJoinStream, onRefresh }: Props) {
+export default function LiveStreamsSection({ rooms, onOpenDownload, onRefresh }: Props) {
   useScrollRevealOnUpdate([rooms])
 
   return (
@@ -20,7 +20,7 @@ export default function LiveStreamsSection({ rooms, onJoinStream, onRefresh }: P
           <span className="section-label">🔴 Live Jamming Now</span>
           <h2 className="display section-title">Currently Live Rooms</h2>
           <p className="section-sub">
-            Synchronized live music rooms — listen directly in real-time zero-lag harmony with live chat &amp; emoji reactions!
+            Check what's playing live right now across Hangloop synchronized music stations.
           </p>
         </div>
 
@@ -37,6 +37,31 @@ export default function LiveStreamsSection({ rooms, onJoinStream, onRefresh }: P
               <span>Refresh</span>
             </button>
           </div>
+        </div>
+
+        {/* Exclusive App Notice Banner */}
+        <div className="reveal-item" style={{
+          background: 'rgba(225, 224, 204, 0.05)',
+          border: '1px solid var(--border-gold)',
+          borderRadius: 'var(--radius-md)',
+          padding: '14px 20px',
+          marginBottom: '28px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '12px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Sparkles className="w-5 h-5" style={{ color: 'var(--prisma-cream)', flexShrink: 0 }} />
+            <span style={{ fontSize: '0.88rem', color: 'var(--prisma-cream)', fontWeight: 500 }}>
+              Live synchronized audio, AI bots (Kira &amp; Leo), and interactive chat are exclusively available in the <strong>Hangloop App</strong>.
+            </span>
+          </div>
+          <button className="btn btn-gold btn-sm" onClick={onOpenDownload}>
+            <Download className="w-3.5 h-3.5" />
+            <span>Download APK</span>
+          </button>
         </div>
 
         {/* Streams Grid */}
@@ -105,11 +130,11 @@ export default function LiveStreamsSection({ rooms, onJoinStream, onRefresh }: P
                       <span style={{ color: 'var(--text-dim)', fontSize: '0.78rem' }}>{artist}</span>
                     </p>
 
-                    {/* Join CTA Button */}
-                    <button className="btn-prisma-primary stream-card-btn" onClick={() => onJoinStream(room.id)}>
-                      <span>Join Live Room</span>
+                    {/* Open in App CTA Button */}
+                    <button className="btn-prisma-primary stream-card-btn" onClick={onOpenDownload}>
+                      <span>Listen &amp; Chat in App</span>
                       <span className="btn-prisma-icon-wrap">
-                        <Play className="w-3.5 h-3.5 fill-current" />
+                        <Smartphone className="w-3.5 h-3.5" />
                       </span>
                     </button>
                   </div>
