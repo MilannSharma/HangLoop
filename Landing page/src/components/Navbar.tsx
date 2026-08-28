@@ -35,6 +35,16 @@ export default function Navbar({ onOpenDownload }: NavbarProps) {
           {/* Navigation Links */}
           <nav className="prisma-nav-links">
             {location.pathname === '/' ? (
+              <a href="#about" className="prisma-nav-link">
+                <span>About</span>
+              </a>
+            ) : (
+              <Link to="/#about" className="prisma-nav-link">
+                <span>About</span>
+              </Link>
+            )}
+
+            {location.pathname === '/' ? (
               <a href="#live-streams" className="prisma-nav-link">
                 <span className="live-pulse-dot" />
                 <span>Live Rooms</span>
@@ -97,6 +107,7 @@ export default function Navbar({ onOpenDownload }: NavbarProps) {
 
       {/* Mobile Menu Drawer */}
       <div className={`mobile-nav${mobileOpen ? ' open' : ''}`}>
+        <a href="#about" onClick={closeMobile}>🌟 About Hangloop</a>
         <a href="#live-streams" onClick={closeMobile}>🔴 Live Rooms Status</a>
         <a href="#request-stream" onClick={closeMobile}>✨ Request YouTube Live</a>
         <a href="#feedback" onClick={closeMobile}>⭐ Listeners Feedback</a>

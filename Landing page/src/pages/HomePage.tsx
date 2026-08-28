@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import HeroSection from '../components/HeroSection'
+import AboutSection from '../components/AboutSection'
 import LiveStreamsSection from '../components/LiveStreamsSection'
 import RequestStreamSection from '../components/RequestStreamSection'
 import FeedbackSection from '../components/FeedbackSection'
@@ -42,6 +43,7 @@ export default function HomePage({ onOpenDownload, onOpenFeedback }: Props) {
   return (
     <main>
       <HeroSection onOpenDownload={onOpenDownload} />
+      <AboutSection onOpenDownload={onOpenDownload} />
       <LiveStreamsSection rooms={rooms} onOpenDownload={onOpenDownload} onRefresh={fetchRooms} />
       <RequestStreamSection />
       <FeedbackSection onOpenFeedback={onOpenFeedback} />

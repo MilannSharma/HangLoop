@@ -466,14 +466,13 @@ export default {
               music_enabled: r.music_enabled === 1,
               max_members: r.max_members || 500,
               created_by: r.created_by || 'system',
-              active_viewers: Math.max(1, realViewers),
               current_video_id: r.current_video_id || '',
               current_title: r.current_title || '',
               current_artist: r.current_artist || '',
-              current_thumbnail: r.current_thumbnail || '',
+              current_thumbnail: (r.current_thumbnail && r.current_thumbnail.startsWith('http')) ? r.current_thumbnail : (r.current_video_id ? `https://img.youtube.com/vi/${r.current_video_id}/hqdefault.jpg` : ''),
               play_source_type: r.play_source_type || 'APP_DB',
               source_youtube_url: r.source_youtube_url || '',
-              thumbnail_url: r.current_thumbnail || `https://img.youtube.com/vi/${r.current_video_id}/hqdefault.jpg`
+              thumbnail_url: (r.current_thumbnail && r.current_thumbnail.startsWith('http')) ? r.current_thumbnail : (r.current_video_id ? `https://img.youtube.com/vi/${r.current_video_id}/hqdefault.jpg` : '')
             };
           })
         );
