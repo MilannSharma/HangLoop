@@ -143,10 +143,10 @@ export default function HomePage({ onOpenDownload, onOpenFeedback }: Props) {
   return (
     <>
       <SEOHead
-        title="Hangloop — Listen to Music Together With Friends in Real Time"
-        description="Hangloop lets you listen to music together with friends online in real time. Join synchronized 24/7 music rooms with zero-lag Cloudflare Edge playback, live chat, and AI hosts."
+        title="Hangloop — Live Music App | Listen to Music Together in Sync with Friends"
+        description="Hangloop is the #1 live synchronized music app. Listen to music together with friends online in real-time 24/7 music rooms with zero-lag Cloudflare Edge playback, background audio, and AI hosts."
         canonicalUrl="https://hang-loop.vercel.app/"
-        keywords="hangloop, listen to music together, listen to music with friends online, music rooms, synchronized music listening, synced music with friends, listen together with friends, online music room, virtual music room, real time music synchronization"
+        keywords="hangloop live music app, hangloop app, hangloop music, listen to music together app, sync music with friends app, live music room app, synchronized music listening app, listen to songs with friends online, online music room with friends, virtual music room app, hangloop apk download, doston ke saath music sunne wala app, watch listen music together online, real time audio sync app"
         jsonLd={homeFaqSchema}
       />
 

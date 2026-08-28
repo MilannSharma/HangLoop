@@ -44,7 +44,7 @@ export default function ListenTogetherPage({ onOpenDownload }: Props) {
         title="Listen to Music Together With Friends Online in Real Time | Hangloop"
         description="Listen to music together online with friends with sub-50ms zero-lag synchronized audio playback. Join live music rooms, chat, react with animated emojis, and stream in background on Android & iOS."
         canonicalUrl="https://hang-loop.vercel.app/listen-to-music-with-friends"
-        keywords="listen to music together, listen to music with friends online, listen to music together online, synced music with friends, listen together with friends, online music room, real time music synchronization"
+        keywords="listen to music together app, hangloop live music app, listen to music with friends online, sync music with friends app, live music app with friends, listen to songs with friends online, online music listening party, doston ke saath music suno, synchronized audio rooms"
         jsonLd={faqSchema}
       />
 

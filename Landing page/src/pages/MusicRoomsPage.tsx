@@ -79,7 +79,7 @@ export default function MusicRoomsPage({ onOpenDownload }: Props) {
         title="Synchronized Music Rooms & 24/7 Live Music Stations | Hangloop"
         description="Join 24/7 synchronized online music rooms streaming Bollywood, Punjabi, Lo-Fi, and trending hits. Listen with friends in real time with sub-50ms sync, live chat, and AI hosts."
         canonicalUrl="https://hang-loop.vercel.app/music-rooms"
-        keywords="music rooms, online music room, virtual music room, synchronized music rooms, shared music room, music listening room, listen to music together"
+        keywords="hangloop live music app, live music room app, music rooms, online music room with friends, virtual music room app, synchronized music rooms, shared live music room, 24/7 music station app, bollywood music room, punjabi music room, lofi study room with friends"
         jsonLd={faqSchema}
       />
 

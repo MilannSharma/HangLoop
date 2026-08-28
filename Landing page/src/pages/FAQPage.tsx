@@ -139,7 +139,7 @@ export default function FAQPage({ onOpenDownload }: Props) {
         title="Frequently Asked Questions (FAQ) | Hangloop Synchronized Music"
         description="Find answers to all questions about Hangloop: how synchronized music listening works, sub-50ms edge audio, 24/7 music rooms, background mobile play, and AI hosts."
         canonicalUrl="https://hang-loop.vercel.app/faq"
-        keywords="hangloop faq, how hangloop works, synchronized music faq, listen together faq, music room questions"
+        keywords="hangloop live music app, hangloop faq, hangloop apk download, listen to music together app faq, sync music with friends app, synchronized music faq, doston ke saath music sunne wala app, music room questions"
         jsonLd={faqSchema}
       />
 
