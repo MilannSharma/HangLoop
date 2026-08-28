@@ -16,6 +16,7 @@ import {
   getSongRequests,
   syncRequestedSong,
   seedFullCatalog,
+  backfillCatalogDurations,
 } from './catalogService';
 import { processKiraMessage, processAIBotMessage, ensureKiraTables } from './kiraService';
 
@@ -322,6 +323,86 @@ export default {
         newUrl.pathname = '/websocket';
         newUrl.searchParams.set('roomId', roomId);
         return stub.fetch(new Request(newUrl.toString(), request));
+      }
+
+      // 1.1 Admin Room Restart Route (Forces reload with latest AI engine)
+      if (url.pathname === '/api/admin/rooms/reboot-all' || url.pathname === '/api/admin/reboot-all-rooms') {
+        const coreRooms = [
+          'room-bollywood-hindi',
+          'room-punjabi-hits',
+          'room-lofi-chill',
+          'room-instagram-trending'
+        ];
+        const results = [];
+        for (const rId of coreRooms) {
+          try {
+            const doId = env.ROOM_DO.idFromName(rId);
+            const stub = env.ROOM_DO.get(doId);
+            const res = await stub.fetch(new Request(`http://internal/kill-isolate?roomId=${rId}`));
+            const data = (await res.json().catch(() => ({}))) as Record<string, any>;
+            results.push({ roomId: rId, ...(data || {}) });
+          } catch (e: any) {
+            results.push({ roomId: rId, error: e.message });
+          }
+        }
+        return new Response(JSON.stringify({ success: true, rebooted: results }), {
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      if (url.pathname === '/api/admin/rooms/restart-all' || url.pathname === '/api/admin/restart-all-rooms') {
+        const coreRooms = [
+          'room-bollywood-hindi',
+          'room-punjabi-hits',
+          'room-lofi-chill',
+          'room-instagram-trending'
+        ];
+        const results = [];
+        for (const rId of coreRooms) {
+          try {
+            const doId = env.ROOM_DO.idFromName(rId);
+            const stub = env.ROOM_DO.get(doId);
+            const res = await stub.fetch(new Request(`http://internal/restart?roomId=${rId}`));
+            const data = (await res.json().catch(() => ({}))) as Record<string, any>;
+            results.push({ roomId: rId, ...(data || {}) });
+          } catch (e: any) {
+            results.push({ roomId: rId, error: e.message });
+          }
+        }
+        return new Response(JSON.stringify({ success: true, restarted: results }), {
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      if (url.pathname.startsWith('/api/admin/rooms/') && url.pathname.endsWith('/restart')) {
+        const roomId = url.pathname.replace('/api/admin/rooms/', '').replace('/restart', '');
+        if (!roomId) {
+          return new Response('Missing room ID', { status: 400, headers: corsHeaders });
+        }
+        const doId = env.ROOM_DO.idFromName(roomId);
+        const stub = env.ROOM_DO.get(doId);
+        const res = await stub.fetch(new Request(`http://internal/restart?roomId=${roomId}`));
+        const data = await res.json().catch(() => ({}));
+        return new Response(JSON.stringify(data), {
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      if (url.pathname === '/api/admin/test-ai' && request.method === 'GET') {
+        const text = url.searchParams.get('q') || '!kira kesi hai';
+        const bot = url.searchParams.get('bot') === 'Leo' ? 'Leo' : 'Kira';
+        const start = Date.now();
+        const res = await processAIBotMessage({
+          botName: bot,
+          userId: 'test-admin-' + Date.now(),
+          username: 'Milan',
+          rawText: text,
+          env
+        });
+        const duration = Date.now() - start;
+        return new Response(JSON.stringify({ durationMs: duration, ...res }), {
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
       }
 
       // 2. Presence Heartbeat Route

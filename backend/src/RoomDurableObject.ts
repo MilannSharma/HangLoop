@@ -278,6 +278,30 @@ export class RoomDurableObject {
       });
     }
 
+    if (url.pathname === '/kill-isolate' || url.pathname === '/reboot-isolate') {
+      setTimeout(() => {
+        throw new Error('REBOOT_ISOLATE_INTENTIONAL');
+      }, 50);
+      return new Response(JSON.stringify({ success: true, message: 'Isolate marked for immediate termination' }), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    if (url.pathname === '/restart' || url.pathname === '/reset') {
+      this.initialized = false;
+      this.chatLogs = [];
+      for (const [ws] of this.members.entries()) {
+        try { ws.close(1012, 'Room Restarting for Engine Update'); } catch (e) {}
+      }
+      this.members.clear();
+      if (roomId) {
+        await this.initializeRoom(roomId);
+      }
+      return new Response(JSON.stringify({ success: true, message: `Room ${roomId} restarted successfully` }), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
     if (url.pathname === '/state') {
       return new Response(JSON.stringify(this.getNormalizedPlaybackState()), {
         headers: { 'Content-Type': 'application/json' }

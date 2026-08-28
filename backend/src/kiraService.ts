@@ -34,7 +34,8 @@ const DEFAULT_KEY_POOL_B64 = [
 function decodeKey(b64: string): string {
   try {
     if (typeof atob === 'function') return atob(b64);
-    if (typeof Buffer !== 'undefined') return Buffer.from(b64, 'base64').toString('utf-8');
+    const buf = (globalThis as any).Buffer;
+    if (buf) return buf.from(b64, 'base64').toString('utf-8');
   } catch (e) {
     // fallback
   }
@@ -243,20 +244,25 @@ Zero memory: only respond to what user said right now. Strictly under 220 charac
 // 6. Multi-Key Gemini Engine with Auto-Failover (Primary)
 // ──────────────────────────────────────────────────────────────
 function getActiveGeminiKeys(env: any): string[] {
-  const envKeys: string[] = [];
+  const pool = DEFAULT_KEY_POOL_B64.map(decodeKey);
+  const extraKeys: string[] = [];
 
   // Check env.GEMINI_API_KEYS (comma-separated list)
   if (env && typeof env.GEMINI_API_KEYS === 'string' && env.GEMINI_API_KEYS.trim()) {
     env.GEMINI_API_KEYS.split(',').forEach((k: string) => {
       const trimmed = k.trim();
-      if (trimmed) envKeys.push(trimmed);
+      if (trimmed && !pool.includes(trimmed) && !extraKeys.includes(trimmed)) {
+        extraKeys.push(trimmed);
+      }
     });
   }
 
   // Check single env.GEMINI_API_KEY
   if (env && typeof env.GEMINI_API_KEY === 'string' && env.GEMINI_API_KEY.trim()) {
     const single = env.GEMINI_API_KEY.trim();
-    if (!envKeys.includes(single)) envKeys.unshift(single);
+    if (single && !pool.includes(single) && !extraKeys.includes(single)) {
+      extraKeys.push(single);
+    }
   }
 
   // If env explicitly passed false or disabled
@@ -264,12 +270,7 @@ function getActiveGeminiKeys(env: any): string[] {
     return [];
   }
 
-  // Fallback to built-in 5-key pool
-  if (envKeys.length === 0) {
-    return DEFAULT_KEY_POOL_B64.map(decodeKey);
-  }
-
-  return envKeys;
+  return [...pool, ...extraKeys];
 }
 
 async function callMultiKeyGeminiPrimary(params: {
@@ -326,7 +327,7 @@ async function callMultiKeyGeminiPrimary(params: {
       };
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4500);
+      const timeoutId = setTimeout(() => controller.abort(), 7500);
 
       const response = await fetch(url, {
         method: 'POST',
@@ -338,9 +339,9 @@ async function callMultiKeyGeminiPrimary(params: {
       clearTimeout(timeoutId);
 
       if (response.status === 429) {
-        // Rate limited on this key: mark key cooldown for 60 seconds and try next key
+        // Rate limited on this key: mark key cooldown for 10 seconds and try next key
         console.warn(`[${botName}] Gemini Key #${keyIdx + 1} rate limited (429), switching to next key...`);
-        keyRateLimits.set(key, now + 60000);
+        keyRateLimits.set(key, now + 10000);
         continue;
       }
 
@@ -487,14 +488,18 @@ export async function processAIBotMessage(params: {
       const aiResponse: any = await Promise.race([aiPromise, timeoutPromise]);
 
       if (aiResponse) {
+        let textCandidate = '';
         if (typeof aiResponse.response === 'string' && aiResponse.response.trim()) {
-          generatedText = aiResponse.response.trim();
-          providerUsed = 'cloudflare';
+          textCandidate = aiResponse.response.trim();
         } else if (Array.isArray(aiResponse.choices) && aiResponse.choices[0]?.message?.content) {
-          generatedText = aiResponse.choices[0].message.content.trim();
-          providerUsed = 'cloudflare';
+          textCandidate = aiResponse.choices[0].message.content.trim();
         } else if (typeof aiResponse === 'string' && aiResponse.trim()) {
-          generatedText = aiResponse.trim();
+          textCandidate = aiResponse.trim();
+        }
+
+        // Quality check: Reject gibberish or micro-fragments from CF AI
+        if (textCandidate.length >= 8 && !/waapi|khuda\s*namaskar/i.test(textCandidate)) {
+          generatedText = textCandidate;
           providerUsed = 'cloudflare';
         }
       }
