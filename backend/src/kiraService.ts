@@ -6,7 +6,7 @@ export const AI_BOT_CONFIG = {
   enabled: true,
   primaryModel: '@cf/meta/llama-3.2-1b-instruct',
   fallbackProvider: 'gemini',
-  defaultGeminiModel: 'gemini-1.5-flash',
+  defaultGeminiModel: 'gemini-3.6-flash',
   maxReplyChars: 300,
   maxInputChars: 500,
   cooldownSeconds: 5, // Exact 5-second cooldown
@@ -276,9 +276,11 @@ async function callGeminiFallback(params: {
   env: any;
 }): Promise<string | null> {
   const { botName, username, sanitizedInput, env } = params;
-  const apiKey = env.GEMINI_API_KEY || (typeof env === 'object' && env['GEMINI_API_KEY']);
+  const apiKey =
+    env.GEMINI_API_KEY ||
+    (typeof env === 'object' && env['GEMINI_API_KEY']);
 
-  if (!apiKey) {
+  if (!apiKey || apiKey === 'null' || apiKey === 'false') {
     return null; // Skip silently if no key configured
   }
 
