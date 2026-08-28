@@ -718,5 +718,74 @@ export const api = {
     } catch (err: any) {
       return { success: false, error: err.message || 'Failed to remove moderator' };
     }
+  },
+
+  /**
+   * Uploads an image to Cloudflare R2 bucket with automatic high-quality WebP compression.
+   * Resizes image and converts to WebP before transmission.
+   */
+  async uploadImage(
+    uri: string,
+    options: { maxWidth?: number; maxHeight?: number; quality?: number } = {}
+  ): Promise<{ success: boolean; url?: string; key?: string; sizeBytes?: number; error?: string }> {
+    try {
+      const { ImageManipulator, manipulateAsync, SaveFormat } = require('expo-image-manipulator');
+      const maxDim = options.maxWidth || 512;
+      const quality = options.quality !== undefined ? options.quality : 0.85;
+
+      // 1. Automatically resize and compress image to WebP format
+      const manipResult = await manipulateAsync(
+        uri,
+        [{ resize: { width: maxDim } }],
+        {
+          compress: quality,
+          format: SaveFormat.WEBP,
+          base64: true
+        }
+      );
+
+      if (!manipResult.base64) {
+        throw new Error('Failed to encode WebP image');
+      }
+
+      // 2. Upload WebP payload to Cloudflare R2 API
+      const token = await this.getAuthToken();
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+      };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const res = await fetch(`${API_BASE_URL}/upload/image`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          base64: manipResult.base64,
+          mimeType: 'image/webp'
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success && data.url) {
+        return {
+          success: true,
+          url: data.url,
+          key: data.key,
+          sizeBytes: data.sizeBytes
+        };
+      }
+
+      return {
+        success: false,
+        error: data.error || 'Failed to upload image to R2'
+      };
+    } catch (err: any) {
+      console.warn('Image WebP upload error:', err);
+      return {
+        success: false,
+        error: err.message || 'Image compression & upload error'
+      };
+    }
   }
 };

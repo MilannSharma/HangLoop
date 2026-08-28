@@ -11,7 +11,7 @@ export default function MobileRestrictedModal({ open, onClose }: Props) {
   const triggerAndroid = () => {
     const link = document.createElement('a')
     link.href = GITHUB_ANDROID_APK
-    link.download = 'hangloop-v1.0.0.apk'
+    link.download = 'Hangloop.apk'
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)

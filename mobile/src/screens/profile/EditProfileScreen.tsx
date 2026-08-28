@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../../theme/ThemeContext';
 import { api, UserProfile } from '../../services/api';
 
@@ -37,9 +38,48 @@ export const EditProfileScreen: React.FC<EditProfileScreenProps> = ({
     user.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&q=80'
   );
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   const headerPaddingTop = insets.top > 0 ? insets.top + 8 : 12;
   const bottomPadding = insets.bottom > 0 ? insets.bottom + 24 : 32;
+
+  const handlePickAndUploadImage = async () => {
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Permission Denied', 'Please allow gallery access to upload your profile photo.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.9,
+      });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
+      }
+
+      const pickedUri = result.assets[0].uri;
+      setIsUploadingImage(true);
+
+      // Automatically compresses to WebP and uploads to Cloudflare R2
+      const uploadRes = await api.uploadImage(pickedUri, { maxWidth: 512, quality: 0.85 });
+
+      if (uploadRes.success && uploadRes.url) {
+        setAvatarUrl(uploadRes.url);
+        Alert.alert('Image Uploaded ✨', 'High-quality WebP image saved to R2 storage.');
+      } else {
+        Alert.alert('Upload Failed', uploadRes.error || 'Could not upload image to R2.');
+      }
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to select and upload image.');
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
 
   const handleSave = async () => {
     const trimmedDisplayName = displayName.trim().slice(0, 15);
@@ -92,7 +132,7 @@ export const EditProfileScreen: React.FC<EditProfileScreenProps> = ({
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Edit Profile</Text>
-        <TouchableOpacity onPress={handleSave} disabled={isSaving} style={styles.saveHeaderBtn}>
+        <TouchableOpacity onPress={handleSave} disabled={isSaving || isUploadingImage} style={styles.saveHeaderBtn}>
           {isSaving ? (
             <ActivityIndicator size="small" color={colors.primary} />
           ) : (
@@ -102,10 +142,37 @@ export const EditProfileScreen: React.FC<EditProfileScreenProps> = ({
       </View>
 
       <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPadding }]}>
-        {/* Avatar Selection */}
+        {/* Avatar Selection & Upload */}
         <View style={styles.avatarSection}>
-          <Image source={{ uri: avatarUrl }} style={[styles.avatarImage, { borderColor: colors.primary }]} />
-          <Text style={[styles.avatarHint, { color: colors.textSecondary }]}>Select Profile Avatar</Text>
+          <View style={styles.avatarWrap}>
+            <Image source={{ uri: avatarUrl }} style={[styles.avatarImage, { borderColor: colors.primary }]} />
+            {isUploadingImage && (
+              <View style={styles.uploadingOverlay}>
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              </View>
+            )}
+            <TouchableOpacity
+              onPress={handlePickAndUploadImage}
+              disabled={isUploadingImage}
+              style={[styles.cameraBadge, { backgroundColor: colors.primary }]}
+            >
+              <Ionicons name="camera" size={16} color="#000000" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Upload Button */}
+          <TouchableOpacity
+            onPress={handlePickAndUploadImage}
+            disabled={isUploadingImage}
+            style={[styles.uploadButton, { borderColor: colors.primary, backgroundColor: colors.surface }]}
+          >
+            <Ionicons name="cloud-upload-outline" size={16} color={colors.primary} style={{ marginRight: 6 }} />
+            <Text style={[styles.uploadButtonText, { color: colors.primary }]}>
+              {isUploadingImage ? 'Compressing to WebP...' : 'Upload Custom Photo'}
+            </Text>
+          </TouchableOpacity>
+
+          <Text style={[styles.avatarHint, { color: colors.textSecondary }]}>or choose a default avatar:</Text>
 
           <View style={styles.avatarPickerRow}>
             {sampleAvatars.map((url, idx) => (
@@ -247,12 +314,53 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 24,
   },
+  avatarWrap: {
+    position: 'relative',
+    marginBottom: 12,
+  },
   avatarImage: {
     width: 100,
     height: 100,
     borderRadius: 50,
     borderWidth: 3,
-    marginBottom: 12,
+  },
+  uploadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cameraBadge: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#0B0D12',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+  },
+  uploadButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 20,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  uploadButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
   },
   avatarHint: {
     fontSize: 13,

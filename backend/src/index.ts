@@ -819,6 +819,113 @@ export default {
       }
 
       // ──────────────────────────────────────────────────────────────
+      // R2 MEDIA UPLOAD & STREAMING ENDPOINTS
+      // ──────────────────────────────────────────────────────────────
+      // POST /api/upload/image (Upload compressed WebP image to R2)
+      if (url.pathname === '/api/upload/image' && request.method === 'POST') {
+        if (!env.R2_BUCKET) {
+          return new Response(JSON.stringify({ error: 'R2 storage bucket not configured' }), {
+            status: 503,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+
+        try {
+          const contentType = request.headers.get('content-type') || '';
+          let imageBuffer: ArrayBuffer | null = null;
+          let ext = 'webp';
+
+          if (contentType.includes('application/json')) {
+            const body = await request.json() as any;
+            const base64Data = body.base64 || body.image || body.data || '';
+            if (!base64Data) {
+              return new Response(JSON.stringify({ error: 'Missing base64 image data' }), {
+                status: 400,
+                headers: { 'Content-Type': 'application/json', ...corsHeaders }
+              });
+            }
+
+            // Strip data:image/...;base64, prefix if present
+            const cleanBase64 = base64Data.replace(/^data:image\/\w+;base64,/, '');
+            const binaryString = atob(cleanBase64);
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+              bytes[i] = binaryString.charCodeAt(i);
+            }
+            imageBuffer = bytes.buffer;
+          } else {
+            // Raw binary stream upload
+            imageBuffer = await request.arrayBuffer();
+          }
+
+          if (!imageBuffer || imageBuffer.byteLength === 0) {
+            return new Response(JSON.stringify({ error: 'Empty image payload' }), {
+              status: 400,
+              headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+          }
+
+          // Generate unique clean WebP key
+          const imageId = `img-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+          const objectKey = `uploads/images/${imageId}.${ext}`;
+
+          await env.R2_BUCKET.put(objectKey, imageBuffer, {
+            httpMetadata: {
+              contentType: 'image/webp',
+              cacheControl: 'public, max-age=31536000, immutable'
+            }
+          });
+
+          const host = url.host || 'hangloop-api.milansharma942105.workers.dev';
+          const proto = url.protocol || 'https:';
+          const publicUrl = `${proto}//${host}/api/media/${objectKey}`;
+
+          return new Response(JSON.stringify({
+            success: true,
+            url: publicUrl,
+            key: objectKey,
+            sizeBytes: imageBuffer.byteLength,
+            format: 'webp'
+          }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message || 'Image upload failed' }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+      }
+
+      // GET /api/media/* (Stream WebP media directly from R2 with high-speed caching)
+      if (url.pathname.startsWith('/api/media/')) {
+        if (!env.R2_BUCKET) {
+          return new Response('Storage bucket not configured', { status: 503, headers: corsHeaders });
+        }
+
+        const objectKey = decodeURIComponent(url.pathname.replace('/api/media/', ''));
+        if (!objectKey) {
+          return new Response('Missing media key', { status: 400, headers: corsHeaders });
+        }
+
+        const object = await env.R2_BUCKET.get(objectKey);
+        if (!object) {
+          return new Response('Media asset not found', { status: 404, headers: corsHeaders });
+        }
+
+        const headers = new Headers();
+        object.writeHttpMetadata(headers);
+        headers.set('etag', object.httpEtag);
+        headers.set('Content-Type', objectKey.endsWith('.webp') ? 'image/webp' : (headers.get('Content-Type') || 'image/jpeg'));
+        headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+        headers.set('Access-Control-Allow-Origin', '*');
+
+        return new Response(object.body, { headers });
+      }
+
+      // ──────────────────────────────────────────────────────────────
       // DIRECT APK & BUILD DOWNLOAD ENDPOINTS
       // ──────────────────────────────────────────────────────────────
       if (
@@ -827,14 +934,19 @@ export default {
         url.pathname === '/api/download/latest' ||
         url.pathname === '/builds/hangloop-v1.0.0.apk' ||
         url.pathname === '/builds/hangloop-latest.apk' ||
+        url.pathname === '/builds/Hangloop.apk' ||
+        url.pathname === '/Hangloop.apk' ||
         url.pathname === '/hangloop-v1.0.0.apk'
       ) {
         if (!env.R2_BUCKET) {
           return new Response('Storage bucket not configured', { status: 503, headers: corsHeaders });
         }
 
-        const objectKey = url.pathname.includes('v1.0.0') ? 'builds/hangloop-v1.0.0.apk' : 'builds/hangloop-latest.apk';
-        const object = await env.R2_BUCKET.get(objectKey);
+        let object = await env.R2_BUCKET.get('builds/Hangloop.apk');
+        if (!object) {
+          const objectKey = url.pathname.includes('v1.0.0') ? 'builds/hangloop-v1.0.0.apk' : 'builds/hangloop-latest.apk';
+          object = await env.R2_BUCKET.get(objectKey);
+        }
 
         if (!object) {
           return new Response('APK build not found', { status: 404, headers: corsHeaders });
@@ -844,7 +956,7 @@ export default {
         object.writeHttpMetadata(headers);
         headers.set('etag', object.httpEtag);
         headers.set('Content-Type', 'application/vnd.android.package-archive');
-        headers.set('Content-Disposition', 'attachment; filename="hangloop-v1.0.0.apk"');
+        headers.set('Content-Disposition', 'attachment; filename="Hangloop.apk"');
         headers.set('Cache-Control', 'public, max-age=3600');
         headers.set('Access-Control-Allow-Origin', '*');
 
