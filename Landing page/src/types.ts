@@ -12,6 +12,7 @@ export interface LiveRoom {
   id: string;
   name: string;
   theme?: string;
+  category?: string;
   tags?: string[];
   active_viewers?: number;
   current_video_id?: string;
@@ -19,6 +20,10 @@ export interface LiveRoom {
   current_artist?: string;
   current_thumbnail?: string;
   thumbnail_url?: string;
+  is_private?: boolean;
+  music_enabled?: boolean;
+  max_members?: number;
+  created_by?: string;
 }
 
 export interface Feedback {

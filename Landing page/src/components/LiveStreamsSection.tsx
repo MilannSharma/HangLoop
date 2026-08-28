@@ -1,7 +1,7 @@
+import { motion } from 'framer-motion'
 import { LiveRoom } from '../types'
 import { getThumbnail } from '../utils/helpers'
-import { useScrollRevealOnUpdate } from '../hooks/useScrollMotion'
-import { Smartphone, Users, Radio, RotateCw, Sparkles, Download } from 'lucide-react'
+import { Smartphone, Radio, RotateCw, Sparkles, Download, Music2, Volume2 } from 'lucide-react'
 
 interface Props {
   rooms: LiveRoom[]
@@ -10,139 +10,190 @@ interface Props {
 }
 
 export default function LiveStreamsSection({ rooms, onOpenDownload, onRefresh }: Props) {
-  useScrollRevealOnUpdate([rooms])
-
   return (
-    <section id="live-streams" className="section-wrap">
+    <section id="live-streams" className="section-wrap" style={{ position: 'relative' }}>
       <div className="container">
+        
         {/* Section Header */}
-        <div className="section-header reveal-item">
-          <span className="section-label">🔴 Live Jamming Now</span>
-          <h2 className="display section-title">Currently Live Rooms</h2>
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: '-60px' }}
+          transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+          className="section-header"
+        >
+          <span className="section-label">🔴 24/7 Synchronized Audio</span>
+          <h2 className="display section-title">Live Music Stations</h2>
           <p className="section-sub">
-            Check what's playing live right now across Hangloop synchronized music stations.
+            Continuous real-time synchronized music stations streaming 24/7 with zero-lag Cloudflare Edge technology.
           </p>
-        </div>
+        </motion.div>
 
         {/* Live Status Bar */}
-        <div className="live-status-bar reveal-item">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6, delay: 0.1 }}
+          className="live-status-bar"
+        >
           <div className="live-status-indicator">
             <div className="live-status-pulse" />
-            <span>{rooms.length} Active {rooms.length === 1 ? 'Stream' : 'Streams'} Live</span>
+            <span>{rooms.length || 4} 24/7 Stations Online</span>
           </div>
           <div className="live-status-actions">
-            <span className="live-status-info">Auto-updating every 10s</span>
-            <button className="btn btn-ghost btn-sm" onClick={onRefresh} title="Refresh Streams">
-              <RotateCw className="w-3 h-3" />
+            <span className="live-status-info">Auto-syncing every 10s</span>
+            <button className="btn btn-ghost btn-sm" onClick={onRefresh} title="Refresh Stations">
+              <RotateCw className="w-3.5 h-3.5" />
               <span>Refresh</span>
             </button>
           </div>
-        </div>
+        </motion.div>
 
         {/* Exclusive App Notice Banner */}
-        <div className="reveal-item" style={{
-          background: 'rgba(225, 224, 204, 0.05)',
-          border: '1px solid var(--border-gold)',
-          borderRadius: 'var(--radius-md)',
-          padding: '14px 20px',
-          marginBottom: '28px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: '12px'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Sparkles className="w-5 h-5" style={{ color: 'var(--prisma-cream)', flexShrink: 0 }} />
-            <span style={{ fontSize: '0.88rem', color: 'var(--prisma-cream)', fontWeight: 500 }}>
-              Live synchronized audio, AI bots (Kira &amp; Leo), and interactive chat are exclusively available in the <strong>Hangloop App</strong>.
-            </span>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6, delay: 0.15 }}
+          style={{
+            background: 'linear-gradient(135deg, rgba(225, 224, 204, 0.08) 0%, rgba(12, 13, 18, 0.95) 100%)',
+            border: '1px solid var(--border-gold)',
+            borderRadius: 'var(--radius-md)',
+            padding: '16px 24px',
+            marginBottom: '32px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '14px',
+            boxShadow: '0 10px 30px rgba(0,0,0,0.5)'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{
+              width: 36,
+              height: 36,
+              borderRadius: 10,
+              background: 'rgba(225, 224, 204, 0.12)',
+              border: '1px solid var(--border-gold)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0
+            }}>
+              <Sparkles className="w-4 h-4 text-[#E1E0CC]" />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.92rem', color: 'var(--prisma-cream)', fontWeight: 700 }}>
+                Live Stream Audio &amp; AI Chat Available in Hangloop App
+              </div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginTop: 2 }}>
+                Enjoy continuous background playback, zero ads, lock-screen controls, and banter with Kira &amp; Leo AI.
+              </div>
+            </div>
           </div>
           <button className="btn btn-gold btn-sm" onClick={onOpenDownload}>
             <Download className="w-3.5 h-3.5" />
-            <span>Download APK</span>
+            <span>Get Official APK</span>
           </button>
-        </div>
+        </motion.div>
 
         {/* Streams Grid */}
         <div className="streams-grid" id="streams-grid-container">
-          {rooms.length === 0 ? (
-            <div className="streams-empty-box" style={{ gridColumn: '1/-1' }}>
-              <div className="streams-empty-icon">
-                <Radio className="w-10 h-10" style={{ margin: '0 auto 12px', color: 'var(--prisma-cream)', opacity: 0.4 }} />
-              </div>
-              <h4 className="streams-empty-title">Abhi koi live stream nahi chal rahi.</h4>
-              <p className="streams-empty-text">Thodi der mein dobara check karein ya refresh button tap karein.</p>
-              <button className="btn btn-gold btn-sm" onClick={onRefresh}>
-                <RotateCw className="w-3.5 h-3.5" />
-                <span>Refresh Streams</span>
-              </button>
-            </div>
-          ) : (
-            rooms.map(room => {
-              const thumb = getThumbnail(room)
-              const title = room.current_title || room.name
-              const artist = room.current_artist ? `${room.current_artist} • Live` : 'Live Stream'
-              const viewers = room.active_viewers || 1
-              const theme = room.theme || 'MUSIC'
+          {rooms.map((room, idx) => {
+            const thumb = getThumbnail(room)
+            const title = room.current_title || room.name
+            const artist = room.current_artist ? `${room.current_artist}` : '24/7 Synchronized Live'
+            const theme = room.theme || 'MUSIC'
 
-              return (
-                <div className="stream-card reveal-item" key={room.id}>
-                  {/* Thumbnail Wrap */}
-                  <div className="stream-card-thumb-wrap">
-                    <img
-                      src={thumb}
-                      alt={room.name}
-                      className="stream-card-thumb"
-                      onError={e => (e.target as HTMLImageElement).src = '/logo-gold.png'}
-                    />
-                    
-                    {/* Live Badge */}
-                    <div className="stream-card-overlay-badge">
-                      <span className="live-tag">
-                        <span className="live-tag-dot" /> LIVE
-                      </span>
-                    </div>
+            return (
+              <motion.div
+                key={room.id}
+                initial={{ opacity: 0, y: 35 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: '-40px' }}
+                transition={{ duration: 0.6, delay: idx * 0.1, ease: [0.16, 1, 0.3, 1] }}
+                whileHover={{ y: -8, transition: { duration: 0.25 } }}
+                className="stream-card"
+              >
+                {/* High-Resolution Thumbnail Wrap */}
+                <div className="stream-card-thumb-wrap">
+                  <img
+                    src={thumb}
+                    alt={room.name}
+                    className="stream-card-thumb"
+                    loading="lazy"
+                    onError={(e) => {
+                      // Guaranteed reliable theme-based fallback
+                      const target = e.target as HTMLImageElement;
+                      if (theme.includes('BOLLYWOOD') || theme.includes('HINDI')) {
+                        target.src = 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&auto=format&fit=crop&q=80';
+                      } else if (theme.includes('PUNJABI')) {
+                        target.src = 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&auto=format&fit=crop&q=80';
+                      } else if (theme.includes('LOFI') || theme.includes('CHILL')) {
+                        target.src = 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=800&auto=format&fit=crop&q=80';
+                      } else {
+                        target.src = 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800&auto=format&fit=crop&q=80';
+                      }
+                    }}
+                  />
 
-                    {/* Animated Soundwave Visualizer in Card */}
-                    <div className="card-soundwave-bars">
-                      <span className="sw-bar bar-1" />
-                      <span className="sw-bar bar-2" />
-                      <span className="sw-bar bar-3" />
-                      <span className="sw-bar bar-4" />
-                    </div>
+                  {/* Dark Gradient Overlay for Contrast */}
+                  <div className="stream-thumb-gradient-overlay" />
 
-                    {/* Viewers Pill */}
-                    <div className="stream-viewers-badge">
-                      <Users className="w-3 h-3" />
-                      <span>{viewers} Listening</span>
-                    </div>
+                  {/* Live Badge */}
+                  <div className="stream-card-overlay-badge">
+                    <span className="live-tag">
+                      <span className="live-tag-dot" /> LIVE
+                    </span>
                   </div>
 
-                  {/* Body */}
-                  <div className="stream-card-body">
-                    <div className="stream-card-meta">
-                      <span className="stream-theme-tag">{theme}</span>
-                    </div>
-                    <h3 className="stream-room-name">{room.name}</h3>
-                    <p className="stream-track-title">
-                      🎵 <strong>{title}</strong><br />
-                      <span style={{ color: 'var(--text-dim)', fontSize: '0.78rem' }}>{artist}</span>
-                    </p>
+                  {/* Animated Soundwave Visualizer in Card */}
+                  <div className="card-soundwave-bars">
+                    <span className="sw-bar bar-1" />
+                    <span className="sw-bar bar-2" />
+                    <span className="sw-bar bar-3" />
+                    <span className="sw-bar bar-4" />
+                  </div>
 
-                    {/* Open in App CTA Button */}
-                    <button className="btn-prisma-primary stream-card-btn" onClick={onOpenDownload}>
-                      <span>Listen &amp; Chat in App</span>
-                      <span className="btn-prisma-icon-wrap">
-                        <Smartphone className="w-3.5 h-3.5" />
-                      </span>
-                    </button>
+                  {/* Audio Mode Badge */}
+                  <div className="stream-mode-badge">
+                    <Volume2 className="w-3.5 h-3.5" />
+                    <span>Sync Stream</span>
                   </div>
                 </div>
-              )
-            })
-          )}
+
+                {/* Body */}
+                <div className="stream-card-body">
+                  <div className="stream-card-meta">
+                    <span className="stream-theme-tag">{theme}</span>
+                    <span className="stream-category-lbl">{room.category || 'Music Station'}</span>
+                  </div>
+                  
+                  <h3 className="stream-room-name">{room.name}</h3>
+                  
+                  <div className="stream-track-info-box">
+                    <Music2 className="w-4 h-4 text-[#E1E0CC] flex-shrink-0" />
+                    <div style={{ overflow: 'hidden' }}>
+                      <div className="stream-track-title-text" title={title}>{title}</div>
+                      <div className="stream-track-artist-text">{artist}</div>
+                    </div>
+                  </div>
+
+                  {/* Open in App CTA Button */}
+                  <button className="btn-prisma-primary stream-card-btn" onClick={onOpenDownload}>
+                    <span>Listen in App</span>
+                    <span className="btn-prisma-icon-wrap">
+                      <Smartphone className="w-3.5 h-3.5" />
+                    </span>
+                  </button>
+                </div>
+              </motion.div>
+            )
+          })}
         </div>
+
       </div>
     </section>
   )
