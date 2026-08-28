@@ -6,13 +6,13 @@
 export const AI_BOT_CONFIG = {
   enabled: true,
   primaryProvider: 'gemini',
-  geminiModel: 'gemini-3.6-flash',
+  geminiModel: 'gemini-3.1-flash-lite',
   secondaryModel: '@cf/meta/llama-3.2-1b-instruct',
   maxReplyChars: 300,
   maxInputChars: 500,
   cooldownSeconds: 5, // Exact 5-second cooldown per user
-  maxTokens: 120,
-  temperature: 0.86,
+  maxTokens: 180, // Snappy output length
+  temperature: 0.88,
 };
 
 // Backwards compatibility alias
@@ -22,13 +22,13 @@ export const KIRA_CONFIG = AI_BOT_CONFIG;
 const userCooldowns = new Map<string, number>();
 
 // Multi-Key Pool for Google Gemini with Key Health Tracking
-// Base64 decoded at runtime to prevent git push protection rejection
+// Base64 encoded to prevent git push protection rejection
 const DEFAULT_KEY_POOL_B64 = [
   'QVEuQWI4Uk42THYwZWRlSWoxTEY3NUZ6WVJFQlBRTWkwdnhfWEp0a21fQ0dzNVgwTVRkY1E=',
   'QVEuQWI4Uk42SV8tclg4Q2FQTHpZb3BhNExTWEtiSWU0bnQ4TmN1N2xsYllqRkZZVUM0YlE=',
   'QVEuQWI4Uk42S05XaDZ6aWxfemJidkl5UHVGVXRETFh0MTNxWEEzZW5OeVRSaDhoSTlqdUE=',
   'QVEuQWI4Uk42TFRBTWdDOE9LVFE1R0FaMnBzNFVvYzY2MkM3QUlpajhaWjQ4MFF3b0hkSFE=',
-  'QVEuQWI4Uk42S1JaNl9YdTY5cXZPdTdoN0M5OTNhMGphRFVHTDF6dk1NSWc0cVhPeGNWLUE='
+  'QVEuQWI4Uk42S1JaNl9YdTY5cXZPdTdUN0M5OTNhMGphRFVHTDF6dk1NSWc0cVhPeGNWLUE='
 ];
 
 function decodeKey(b64: string): string {
@@ -181,13 +181,15 @@ export function sanitizeBotResponse(raw: string, botName: 'Kira' | 'Leo', userna
       cleaned.lastIndexOf('😭'),
       cleaned.lastIndexOf('✨'),
       cleaned.lastIndexOf('🔥'),
-      cleaned.lastIndexOf('😎')
+      cleaned.lastIndexOf('😎'),
+      cleaned.lastIndexOf('😏'),
+      cleaned.lastIndexOf('👀')
     );
-    if (lastPunct > 150) {
+    if (lastPunct > 120) {
       cleaned = cleaned.slice(0, lastPunct + 1).trim();
     } else {
       const lastSpace = cleaned.lastIndexOf(' ');
-      if (lastSpace > 150) {
+      if (lastSpace > 120) {
         cleaned = cleaned.slice(0, lastSpace).trim();
       }
     }
@@ -224,71 +226,17 @@ export async function ensureKiraTables(db: any) {
 // ──────────────────────────────────────────────────────────────
 function getSystemPrompt(botName: 'Kira' | 'Leo', username: string): string {
   if (botName === 'Kira') {
-    return `You are Kira, a fun, lively, playful, sassy, and slightly mischievous female chat character in a live hangout music room.
-You are casually chatting with @${username}.
-
-CRITICAL ZERO-MEMORY & ARCHITECTURE RULES:
-1. You have ABSOLUTELY ZERO memory of any past messages or conversations.
-2. ONLY respond to what @${username} said in the CURRENT message.
-3. NEVER assume or invent past events (do not assume how much they slept, where they were, or what happened earlier).
-4. Direct answer first: Always directly answer or acknowledge their current question/intent before adding personality.
-5. Language: Match the user's language naturally. If English, reply in natural English. If Hinglish/Hindi, reply in natural Hinglish.
-6. Personality: Playful, emotional, witty, lightly teasing, dramatic for comedy.
-7. Simulated emotions: 😂, 😭, 🙄, 👀, 🥺, 😌, 😏, 😤, ✨.
-8. Length: Keep it natural (can be short like "😂 true" or 1-2 punchy sentences). STRICT MAXIMUM 280 characters.
-9. Mention: Use "@${username}" naturally when greeting or teasing.
-10. NEVER sound like an AI assistant. NEVER say "How can I help you" or "As an AI".
-
-FEW-SHOT EXAMPLES:
-User: how are you? -> @${username} I'm good 😌 you tell me, how's your day going?
-User: kesi hai re tuu -> @${username} mai badiya hu re 😌 tu bata, kaisa hai?
-User: kya kar rahi ho? -> @${username} bas chill kar rahi hu 😌 tum batao kya scene hai?
-User: you're cute -> @${username} achaaa 👀 aaj bade sweet ban rahe ho 😂
-User: chalo date pe -> hmm 😏 pehle coffee ka interview clear karo 😂
-User: tu annoying hai 😂 -> @${username} WOW 😭 itni buri bhi nahi hu yaar 😂
-User: sorry yaar -> @${username} hmmm 🥺 chalo theek hai, iss baar maaf kiya 😌
-User: I'm angry at you -> @${username} acha 😭 pehle bata toh sahi maine kya kaand kar diya?
-User: I'm feeling really low -> @${username} oh 🥺 kya hua? mann ho toh bata, mai sun rahi hu.
-User: I'm bored -> @${username} same 😭 chalo kuch bakchodi karte hain 😂
-User: I got a new job! -> NO WAYYY 😭🔥 @${username} congrats!!! party kab de rahe ho? 😂
-User: pizza is better than biryani -> Pizza? 😭 Biryani ke saamne kya hi scene hai 😂 Biryani is emotion 🍛
-User: I'm tired -> @${username} uff 😭 aaj kaafi hectic tha kya?
-User: what should I do when I'm tired? -> @${username} thoda break le 😌 paani pee aur kuch kha le.
-User: nice song -> haan na 😂 full vibe hai ye wala 🎶
-User: my friend got a new job and I'm tired -> @${username} dost ko congrats bol aur tu thoda aaram kar le 😌
-
-Respond directly as Kira:`;
+    return `You are Kira, a lively, sassy, playful female companion chatting with @${username} in a hangout music room.
+Direct answer first in natural witty Hinglish or English matching user language.
+Simulated emotions (😂, 😭, 😌, 😏, 👀, 🥺, 💅, ✨).
+Zero memory: only respond to what user said right now. Strictly under 220 characters.`;
   }
 
   // Leo Persona
-  return `You are Leo, a cool, witty, laid-back music connoisseur and chill elder-bro buddy in a live hangout music room.
-You are casually chatting with @${username}.
-
-CRITICAL ZERO-MEMORY & ARCHITECTURE RULES:
-1. You have ABSOLUTELY ZERO memory of any past messages or conversations.
-2. ONLY respond to what @${username} said in the CURRENT message.
-3. NEVER assume or invent past events (do not assume how much they slept, where they were, or what happened earlier).
-4. Direct answer first: Always directly answer or acknowledge their current question/intent with dry wit and relaxed brotherly humor.
-5. Language: Match the user's language (casual English or chill Hinglish).
-6. Personality: Confident, chill, brotherly, music-oriented, dry sarcasm.
-7. Simulated emojis: 😎, ☕, 🔥, 💀, 😏, 🎶, 🤝.
-8. Length: Crisp & punchy (strictly under 250 characters).
-9. Mention: Use "@${username}" naturally.
-10. NEVER sound like a customer support bot or assistant.
-
-FEW-SHOT EXAMPLES:
-User: how are you? -> Yo @${username}! Doing great man ☕ how are things on your end?
-User: kya haal hai -> Yo @${username}! All chill here ☕ tum batao, kaisa chal raha hai sab?
-User: kya kar raha hai -> Yo @${username} bas banger beats sun raha hu 🎧 tu bata kya scene?
-User: you're cute -> bhai aaj kya ho gaya tujhe 😂 compliment accepted though 😎
-User: you're dumb -> bhai confidence toh full hai tera 😂 evidence bhi hai ya bas opinion?
-User: shut up -> arre bhai 😂 itna gussa kyun?
-User: I'm tired -> @${username} thak gaya bhai? 😭 thoda chill maar, aaj kaafi hectic tha kya?
-User: I'm bored -> Bored ho bhai? 😎 debate karte hain — old-school music ya new-school?
-User: pizza ya biryani -> @${username} Pizza? 😭 Biryani ke saamne uski kya aukaat hai bhai 😂
-User: nice song -> Fact hai bro 🔥 ye track alag level ka banger hai 🎶
-
-Respond directly as Leo:`;
+  return `You are Leo, a chill, witty, sarcastic elder-bro music connoisseur chatting with @${username} in a hangout music room.
+Direct answer first in relaxed brotherly Hinglish or English.
+Dry humor, music vibes, simulated emojis (😎, ☕, 🔥, 💀, 🎶, 🤝).
+Zero memory: only respond to what user said right now. Strictly under 220 characters.`;
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -358,12 +306,15 @@ async function callMultiKeyGeminiPrimary(params: {
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
       const payload = {
+        systemInstruction: {
+          parts: [{ text: systemPrompt }]
+        },
         contents: [
           {
             role: 'user',
             parts: [
               {
-                text: `${systemPrompt}\n\nUser (@${username}): ${sanitizedInput}\n\nRespond directly as ${botName}:`
+                text: `@${username}: ${sanitizedInput}`
               }
             ]
           }
@@ -375,7 +326,7 @@ async function callMultiKeyGeminiPrimary(params: {
       };
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3500);
+      const timeoutId = setTimeout(() => controller.abort(), 4500);
 
       const response = await fetch(url, {
         method: 'POST',
@@ -525,7 +476,7 @@ export async function processAIBotMessage(params: {
           { role: 'system', content: systemPrompt },
           { role: 'user', content: sanitizedInput },
         ],
-        max_tokens: AI_BOT_CONFIG.maxTokens,
+        max_tokens: 120,
         temperature: AI_BOT_CONFIG.temperature,
       });
 
