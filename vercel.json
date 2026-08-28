@@ -2,9 +2,51 @@
   "buildCommand": "cd \"Landing page\" && npm install --legacy-peer-deps && npm run build",
   "outputDirectory": "Landing page/dist",
   "framework": "vite",
+  "cleanUrls": true,
+  "headers": [
+    {
+      "source": "/robots.txt",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "text/plain; charset=utf-8"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=3600, s-maxage=3600"
+        }
+      ]
+    },
+    {
+      "source": "/sitemap.xml",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/xml; charset=utf-8"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=3600, s-maxage=3600"
+        }
+      ]
+    },
+    {
+      "source": "/sitemap.txt",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "text/plain; charset=utf-8"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=3600, s-maxage=3600"
+        }
+      ]
+    }
+  ],
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/((?!assets|public|robots\\.txt|sitemap\\.xml|sitemap\\.txt|site\\.webmanifest|.*\\.[\\w]+$|listen-to-music-with-friends|music-rooms|synchronized-music|how-it-works|features|faq|about|requests|changelog|contact|privacy|terms).*)",
       "destination": "/index.html"
     }
   ]
