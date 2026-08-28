@@ -1,7 +1,7 @@
 import { PlaybackState, QueueItem, ChatMessage, Room } from './types';
 import { fetchYouTubeMetadata, validateVideoTheme, validateVideoPlayable, searchYouTubeCandidates } from './themeValidator';
 import { recordSongFailure } from './catalogService';
-import { processAIBots } from './aiBotService';
+import { isKiraCommand, processKiraMessage } from './kiraService';
 
 interface ConnectedMember {
   webSocket: WebSocket;
@@ -296,7 +296,6 @@ export class RoomDurableObject {
       }
 
       if (videoId) {
-        this.playSourceType = 'YOUTUBE_URL';
         this.playbackState.currentVideo = {
           id: 'cur-' + Date.now(),
           videoId,
@@ -506,7 +505,19 @@ export class RoomDurableObject {
               });
             }
           }
-          webSocket.send(JSON.stringify({ type: 'HEARTBEAT_ACK' }));
+          webSocket.send(JSON.stringify({ 
+            type: 'HEARTBEAT_ACK',
+            playbackState: this.getNormalizedPlaybackState()
+          }));
+          break;
+        }
+
+        case 'REQUEST_SYNC':
+        case 'RESYNC': {
+          webSocket.send(JSON.stringify({
+            type: 'PLAYBACK_SYNC',
+            playbackState: this.getNormalizedPlaybackState()
+          }));
           break;
         }
 
@@ -622,114 +633,55 @@ export class RoomDurableObject {
 
           this.broadcast({ type: 'CHAT_RECEIVE', message: chatMsg });
 
-          // ── KIRA & BEN DUAL AI BOTS LIVE CHAT INTEGRATION ──
-          processAIBots({
-            roomId: this.roomId,
-            userId: member.user.id,
-            username: member.user.username,
-            rawText: text,
-            recentChat: this.chatLogs.slice(-8).map(m => ({
-              sender: m.sender.username,
-              text: m.text,
-              isAI: m.isAI,
-              aiName: m.aiName
-            })),
-            currentSongTitle: this.playbackState.currentVideo?.title,
-            currentSongArtist: this.playbackState.currentVideo?.artist,
-            roomName: this.roomName,
-            env: this.env
-          }).then((botDecision) => {
-            if (botDecision && botDecision.shouldRespond && botDecision.reply) {
-              const botName = botDecision.botName;
-              const botTimestamp = Date.now();
-              const isKira = botName === 'Kira';
-              const botMsg: ChatMessage = {
-                id: `${botName.toLowerCase()}-${botTimestamp}-${Math.random().toString(36).substring(7)}`,
-                sender: {
-                  id: `${botName.toLowerCase()}-ai`,
-                  username: botName,
-                  full_name: `${botName} 🤖`,
-                  avatar_url: isKira
-                    ? 'https://api.dicebear.com/7.x/bottts/svg?seed=kira-ai'
-                    : 'https://api.dicebear.com/7.x/bottts/svg?seed=ben-ai',
-                  is_moderator: true,
-                },
-                text: botDecision.reply,
-                isAI: true,
-                aiName: botName,
-                timestamp: botTimestamp
-              };
+          // ── KIRA AI LIVE CHAT INTEGRATION ──
+          if (isKiraCommand(text)) {
+            processKiraMessage({
+              messageId: 'kira-req-' + chatMsg.id,
+              userId: member.user.id,
+              username: member.user.username,
+              rawText: text,
+              env: this.env
+            }).then((kiraResult) => {
+              if (kiraResult.isKira && kiraResult.reply) {
+                const kiraTimestamp = Date.now();
+                const kiraMsg: ChatMessage = {
+                  id: 'kira-' + kiraTimestamp + '-' + Math.random().toString(36).substring(7),
+                  sender: {
+                    id: 'kira-ai',
+                    username: 'Kira',
+                    full_name: 'Kira 🤖',
+                    avatar_url: 'https://api.dicebear.com/7.x/bottts/svg?seed=kira-ai',
+                    is_moderator: true,
+                  },
+                  text: kiraResult.reply,
+                  isAI: true,
+                  aiName: 'Kira',
+                  timestamp: kiraTimestamp
+                };
 
-              this.chatLogs.push(botMsg);
-              if (this.chatLogs.length > 50) this.chatLogs.shift();
+                this.chatLogs.push(kiraMsg);
+                if (this.chatLogs.length > 50) this.chatLogs.shift();
 
-              if (this.env.DB && this.roomId) {
-                this.env.DB.prepare(
-                  `INSERT INTO chat_messages (id, client_message_id, room_id, sender_id, sender_name, sender_avatar, sender_is_moderator, sender_is_super_admin, text, is_ai, ai_name, is_system, timestamp_ms)
-                   VALUES (?, '', ?, ?, ?, ?, 1, 0, ?, 1, ?, 0, ?)`
-                ).bind(
-                  botMsg.id,
-                  this.roomId,
-                  botMsg.sender.id,
-                  botMsg.sender.full_name,
-                  botMsg.sender.avatar_url,
-                  botDecision.reply,
-                  botName,
-                  botTimestamp
-                ).run().catch(() => {});
+                // Persist Kira message to D1
+                if (this.env.DB && this.roomId) {
+                  this.env.DB.prepare(
+                    `INSERT INTO chat_messages (id, client_message_id, room_id, sender_id, sender_name, sender_avatar, sender_is_moderator, sender_is_super_admin, text, is_ai, ai_name, is_system, timestamp_ms)
+                     VALUES (?, '', ?, 'kira-ai', 'Kira 🤖', ?, 1, 0, ?, 1, 'Kira', 0, ?)`
+                  ).bind(
+                    kiraMsg.id,
+                    this.roomId,
+                    kiraMsg.sender.avatar_url,
+                    kiraResult.reply,
+                    kiraTimestamp
+                  ).run().catch(() => {});
+                }
+
+                this.broadcast({ type: 'CHAT_RECEIVE', message: kiraMsg });
               }
-
-              this.broadcast({ type: 'CHAT_RECEIVE', message: botMsg });
-
-              // AI-to-AI spontaneous reaction if triggered
-              if (botDecision.secondaryReaction) {
-                const sec = botDecision.secondaryReaction;
-                setTimeout(() => {
-                  const secTimestamp = Date.now();
-                  const isSecKira = sec.botName === 'Kira';
-                  const secMsg: ChatMessage = {
-                    id: `${sec.botName.toLowerCase()}-${secTimestamp}-${Math.random().toString(36).substring(7)}`,
-                    sender: {
-                      id: `${sec.botName.toLowerCase()}-ai`,
-                      username: sec.botName,
-                      full_name: `${sec.botName} 🤖`,
-                      avatar_url: isSecKira
-                        ? 'https://api.dicebear.com/7.x/bottts/svg?seed=kira-ai'
-                        : 'https://api.dicebear.com/7.x/bottts/svg?seed=ben-ai',
-                      is_moderator: true,
-                    },
-                    text: sec.reply,
-                    isAI: true,
-                    aiName: sec.botName,
-                    timestamp: secTimestamp
-                  };
-
-                  this.chatLogs.push(secMsg);
-                  if (this.chatLogs.length > 50) this.chatLogs.shift();
-
-                  if (this.env.DB && this.roomId) {
-                    this.env.DB.prepare(
-                      `INSERT INTO chat_messages (id, client_message_id, room_id, sender_id, sender_name, sender_avatar, sender_is_moderator, sender_is_super_admin, text, is_ai, ai_name, is_system, timestamp_ms)
-                       VALUES (?, '', ?, ?, ?, ?, 1, 0, ?, 1, ?, 0, ?)`
-                    ).bind(
-                      secMsg.id,
-                      this.roomId,
-                      secMsg.sender.id,
-                      secMsg.sender.full_name,
-                      secMsg.sender.avatar_url,
-                      sec.reply,
-                      sec.botName,
-                      secTimestamp
-                    ).run().catch(() => {});
-                  }
-
-                  this.broadcast({ type: 'CHAT_RECEIVE', message: secMsg });
-                }, sec.delayMs || 2600);
-              }
-            }
-          }).catch((err) => {
-            console.warn('[RoomDurableObject] AI Bot processing error:', err);
-          });
+            }).catch((err) => {
+              console.warn('[RoomDurableObject] Kira AI processing error:', err);
+            });
+          }
           break;
         }
 
@@ -1356,10 +1308,10 @@ export class RoomDurableObject {
   }
 
   private getNormalizedPlaybackState(): PlaybackState {
-    let currentSeek = this.playbackState.seekPosition;
-    if (this.playbackState.isPlaying && this.playSourceType !== 'YOUTUBE_URL') {
+    let currentSeek = this.playbackState.seekPosition || 0;
+    if (this.playbackState.isPlaying && this.playbackState.startTimestamp) {
       const elapsedSeconds = (Date.now() - this.playbackState.startTimestamp) / 1000;
-      currentSeek += elapsedSeconds;
+      currentSeek += Math.max(0, elapsedSeconds);
     }
     return {
       ...this.playbackState,

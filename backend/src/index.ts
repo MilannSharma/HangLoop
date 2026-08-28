@@ -191,10 +191,100 @@ async function ensureAllTables(db: D1Database) {
         console.warn('Could not add tags column to rooms:', err);
       });
     }
+
+    // Idempotent Migration: Ensure google_sub column in users table
+    const { results: userCols } = await db.prepare(`PRAGMA table_info(users)`).all();
+    const existingUserCols = new Set((userCols || []).map((c: any) => c.name));
+    if (!existingUserCols.has('google_sub')) {
+      await db.prepare(`ALTER TABLE users ADD COLUMN google_sub TEXT`).run().catch((err) => {
+        console.warn('Could not add google_sub column to users:', err);
+      });
+    }
+    await db.prepare(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_sub ON users(google_sub)`).run().catch(() => {});
+    await db.prepare(`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`).run().catch(() => {});
   } catch (e) {
-    console.warn('Error during chat_messages / rooms PRAGMA migration:', e);
+    console.warn('Error during chat_messages / rooms / users PRAGMA migration:', e);
   }
   tablesInitialized = true;
+}
+
+const EXPECTED_GOOGLE_CLIENT_IDS = [
+  '206898168634-1j6nr634csdvuth68ccpqdr6bb1cj38m.apps.googleusercontent.com'
+];
+const EXPECTED_GOOGLE_PROJECT_NUMBER = '206898168634';
+
+interface GoogleTokenPayload {
+  sub: string;
+  email: string;
+  email_verified: boolean;
+  name?: string;
+  picture?: string;
+  aud: string;
+  iss: string;
+  exp: number;
+}
+
+async function verifyGoogleIdToken(idToken: string): Promise<{ valid: boolean; payload?: GoogleTokenPayload; error?: string }> {
+  if (!idToken || typeof idToken !== 'string') {
+    return { valid: false, error: 'Missing Google ID Token' };
+  }
+
+  try {
+    const res = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`);
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({})) as any;
+      return { valid: false, error: errData?.error_description || 'Invalid or expired Google token' };
+    }
+
+    const data = await res.json() as any;
+
+    // Verify audience (matches explicit client IDs or project number prefix)
+    const matchesClient = EXPECTED_GOOGLE_CLIENT_IDS.includes(data.aud) ||
+      (typeof data.aud === 'string' && data.aud.startsWith(EXPECTED_GOOGLE_PROJECT_NUMBER));
+
+    if (!matchesClient) {
+      console.warn(`Google token aud mismatch: received ${data.aud}`);
+      return { valid: false, error: 'Google Token audience mismatch' };
+    }
+
+    // Verify issuer
+    if (data.iss !== 'accounts.google.com' && data.iss !== 'https://accounts.google.com') {
+      return { valid: false, error: 'Invalid Google token issuer' };
+    }
+
+    // Verify expiration
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (parseInt(data.exp, 10) < nowSec) {
+      return { valid: false, error: 'Google token has expired' };
+    }
+
+    // Verify email & email_verified
+    const emailVerified = data.email_verified === 'true' || data.email_verified === true;
+    if (!emailVerified || !data.email) {
+      return { valid: false, error: 'Google account email is unverified' };
+    }
+
+    if (!data.sub) {
+      return { valid: false, error: 'Missing Google user ID (sub)' };
+    }
+
+    return {
+      valid: true,
+      payload: {
+        sub: data.sub,
+        email: data.email.trim().toLowerCase(),
+        email_verified: true,
+        name: (data.name || '').trim(),
+        picture: data.picture || '',
+        aud: data.aud,
+        iss: data.iss,
+        exp: parseInt(data.exp, 10)
+      }
+    };
+  } catch (err: any) {
+    console.error('Google token verification error:', err);
+    return { valid: false, error: 'Failed to verify Google token with identity provider' };
+  }
 }
 
 async function ensureModerationTables(db: D1Database) {
@@ -1034,7 +1124,283 @@ export default {
       }
 
       // ──────────────────────────────────────────────────────────────
-      // 6. AUTH: Send Real Gmail Email OTP
+      // 5.5 GOOGLE AUTH & USER ONBOARDING APIS
+      // ──────────────────────────────────────────────────────────────
+
+      // 1. Check Username Availability (Live debounced endpoint)
+      if (url.pathname === '/api/auth/check-username' && request.method === 'GET') {
+        const rawUsername = (url.searchParams.get('username') || '').trim().toLowerCase();
+        if (!rawUsername) {
+          return new Response(JSON.stringify({ available: false, reason: 'Username cannot be empty.' }), {
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+
+        if (rawUsername.length < 3) {
+          return new Response(JSON.stringify({ available: false, reason: 'Must be at least 3 characters.' }), {
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+
+        if (rawUsername.length > 20) {
+          return new Response(JSON.stringify({ available: false, reason: 'Maximum 20 characters.' }), {
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+
+        if (!/^[a-zA-Z0-9_]+$/.test(rawUsername)) {
+          return new Response(JSON.stringify({ available: false, reason: 'Only letters, numbers, and underscores allowed.' }), {
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+
+        const reservedUsernames = ['admin', 'system', 'hangloop', 'kira', 'moderator', 'support', 'help', 'root', 'bot'];
+        if (reservedUsernames.includes(rawUsername)) {
+          return new Response(JSON.stringify({ available: false, reason: 'This username is reserved.' }), {
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+
+        const existing = await env.DB.prepare(`SELECT id FROM users WHERE LOWER(username) = ?`).bind(rawUsername).first();
+        if (existing) {
+          return new Response(JSON.stringify({ available: false, reason: 'Username is already taken.' }), {
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+
+        return new Response(JSON.stringify({ available: true }), {
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      // 2. Google Authentication Endpoint (Login or Initiate Onboarding)
+      if (url.pathname === '/api/auth/google' && request.method === 'POST') {
+        const body = await request.json() as any;
+        const { idToken } = body;
+
+        const verification = await verifyGoogleIdToken(idToken);
+        if (!verification.valid || !verification.payload) {
+          return new Response(JSON.stringify({ error: verification.error || 'Google authentication failed' }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+
+        const { sub, email, name, picture } = verification.payload;
+
+        // Step A: Check if another account is already linked to this google_sub
+        let rawUserBySub: any = await env.DB.prepare(
+          `SELECT id, full_name, username, email, avatar_url, bio, google_sub FROM users WHERE google_sub = ?`
+        ).bind(sub).first();
+
+        // Step B: Check if an existing account matches this verified email
+        let rawUserByEmail: any = await env.DB.prepare(
+          `SELECT id, full_name, username, email, avatar_url, bio, google_sub FROM users WHERE email = ?`
+        ).bind(email).first();
+
+        // Collision Safeguard: If google_sub belongs to user A, but email belongs to user B -> Conflict!
+        if (rawUserBySub && rawUserByEmail && rawUserBySub.id !== rawUserByEmail.id) {
+          return new Response(JSON.stringify({
+            error: 'Account conflict: This Google account is linked to another user profile. Please contact support.'
+          }), {
+            status: 409,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+
+        let rawUser = rawUserBySub;
+
+        // Step C: If no user linked to this google_sub yet, but email matches an existing OTP user -> Link safely!
+        if (!rawUser && rawUserByEmail) {
+          // If the email user already has a different google_sub linked, do NOT overwrite it!
+          if (rawUserByEmail.google_sub && rawUserByEmail.google_sub !== sub) {
+            return new Response(JSON.stringify({
+              error: 'This email account is already associated with a different Google account.'
+            }), {
+              status: 409,
+              headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+          }
+
+          // Link google_sub to existing user account
+          await env.DB.prepare(`UPDATE users SET google_sub = ? WHERE id = ?`).bind(sub, rawUserByEmail.id).run();
+          rawUser = rawUserByEmail;
+          rawUser.google_sub = sub;
+        }
+
+        // Step D: If existing user -> issue session and login immediately
+        if (rawUser) {
+          const token = crypto.randomUUID();
+          const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+          await env.DB.prepare(
+            `INSERT INTO user_sessions (token, user_id, expires_at) VALUES (?, ?, ?)`
+          ).bind(token, rawUser.id, expiresAt).run();
+
+          const user = await enrichUser(env.DB, rawUser);
+
+          return new Response(JSON.stringify({
+            success: true,
+            isNewUser: false,
+            user,
+            token
+          }), {
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+
+        // Step E: Completely new user -> request profile completion (without echoing back idToken)
+        return new Response(JSON.stringify({
+          success: true,
+          isNewUser: true,
+          email,
+          suggestedName: name || '',
+          avatarUrl: picture || '',
+        }), {
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      // 3. Google Complete Profile (Finalizes New User Onboarding)
+      if (url.pathname === '/api/auth/google/complete-profile' && request.method === 'POST') {
+        const body = await request.json() as any;
+        const { idToken, fullName, username } = body;
+
+        if (!fullName || !username || !idToken) {
+          return new Response(JSON.stringify({ error: 'Full Name, Username, and Google Token are required.' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+
+        const verification = await verifyGoogleIdToken(idToken);
+        if (!verification.valid || !verification.payload) {
+          return new Response(JSON.stringify({ error: verification.error || 'Google authentication session expired. Please try signing in again.' }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+
+        const { sub, email, picture } = verification.payload;
+        const normalizedUsername = username.trim().toLowerCase();
+        const sanitizedFullName = fullName.trim().slice(0, 50);
+
+        if (!/^[a-zA-Z0-9_]{3,20}$/.test(normalizedUsername)) {
+          return new Response(JSON.stringify({ error: 'Username must be 3-20 characters and contain only letters, numbers, or underscores.' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+
+        const reservedUsernames = ['admin', 'system', 'hangloop', 'kira', 'moderator', 'support', 'help', 'root', 'bot'];
+        if (reservedUsernames.includes(normalizedUsername)) {
+          return new Response(JSON.stringify({ error: 'This username is reserved. Please choose another.' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+
+        // Check username availability in D1
+        const existingUsername = await env.DB.prepare(
+          `SELECT id FROM users WHERE LOWER(username) = ?`
+        ).bind(normalizedUsername).first();
+
+        if (existingUsername) {
+          return new Response(JSON.stringify({ error: 'This username is already taken. Please choose another.' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+
+        // Check if account already exists
+        const existingAccount: any = await env.DB.prepare(
+          `SELECT id, full_name, username, email, avatar_url, bio, google_sub FROM users WHERE google_sub = ? OR email = ?`
+        ).bind(sub, email).first();
+
+        if (existingAccount) {
+          // If existing account has a different google_sub linked, do not overwrite
+          if (existingAccount.google_sub && existingAccount.google_sub !== sub) {
+            return new Response(JSON.stringify({ error: 'This email is already associated with another Google account.' }), {
+              status: 409,
+              headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+          }
+
+          if (!existingAccount.google_sub) {
+            await env.DB.prepare(`UPDATE users SET google_sub = ? WHERE id = ?`).bind(sub, existingAccount.id).run();
+          }
+
+          const token = crypto.randomUUID();
+          const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+          await env.DB.prepare(`INSERT INTO user_sessions (token, user_id, expires_at) VALUES (?, ?, ?)`).bind(token, existingAccount.id, expiresAt).run();
+          const user = await enrichUser(env.DB, existingAccount);
+          return new Response(JSON.stringify({ success: true, user, token }), {
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+
+        // Generate Immutable Unique User ID (e.g. ULP8F2K9X7)
+        const userId = generateUserId();
+        const avatarUrl = picture || `https://api.dicebear.com/7.x/avataaars/svg?seed=${normalizedUsername}`;
+
+        // Insert into D1 users table with google_sub (protected by D1 unique constraints)
+        try {
+          await env.DB.prepare(
+            `INSERT INTO users (id, full_name, email, username, bio, avatar_url, google_sub)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`
+          ).bind(userId, sanitizedFullName, email, normalizedUsername, 'Listening on Hangloop', avatarUrl, sub).run();
+        } catch (dbErr: any) {
+          const errMsg = (dbErr?.message || '').toLowerCase();
+          if (errMsg.includes('unique') || errMsg.includes('constraint')) {
+            if (errMsg.includes('username')) {
+              return new Response(JSON.stringify({ error: 'This username was just claimed by someone else. Please choose another.' }), {
+                status: 409,
+                headers: { 'Content-Type': 'application/json', ...corsHeaders }
+              });
+            }
+            return new Response(JSON.stringify({ error: 'An account with this email or Google identity already exists.' }), {
+              status: 409,
+              headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+          }
+          throw dbErr;
+        }
+
+        // Record Policy Acceptances
+        const policyTypes = ['COMMUNITY_RULES', 'TERMS_SERVICES', 'PRIVACY_POLICY'];
+        for (const pt of policyTypes) {
+          await env.DB.prepare(
+            `INSERT INTO user_policy_acceptances (id, user_id, policy_type, policy_version)
+             VALUES (?, ?, ?, ?)`
+          ).bind('pol-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4), userId, pt, '1.0').run();
+        }
+
+        // Create Session Token
+        const token = crypto.randomUUID();
+        const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(); // 30 days
+
+        await env.DB.prepare(
+          `INSERT INTO user_sessions (token, user_id, expires_at) VALUES (?, ?, ?)`
+        ).bind(token, userId, expiresAt).run();
+
+        const rawUser = {
+          id: userId,
+          full_name: sanitizedFullName,
+          username: normalizedUsername,
+          email,
+          avatar_url: avatarUrl,
+          bio: 'Listening on Hangloop'
+        };
+
+        const user = await enrichUser(env.DB, rawUser);
+
+        return new Response(JSON.stringify({ success: true, user, token }), {
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      // ──────────────────────────────────────────────────────────────
+      // 6. AUTH: Send Real Gmail Email OTP (Legacy / Fallback)
       // ──────────────────────────────────────────────────────────────
       if (url.pathname === '/api/auth/send-otp' && request.method === 'POST') {
         const { email } = await request.json() as { email: string };

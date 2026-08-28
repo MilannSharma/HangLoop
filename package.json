@@ -1,0 +1,9 @@
+{
+  "name": "hangloop",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "build": "cd \"Landing page\" && npm install --legacy-peer-deps && npm run build",
+    "dev": "cd \"Landing page\" && npm run dev"
+  }
+}

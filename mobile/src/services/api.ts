@@ -156,41 +156,45 @@ export const api = {
     } catch (e) {}
   },
 
-  // Auth: Request Email OTP via Real Gmail SMTP
-  async requestOtp(email: string): Promise<{ success: boolean; message?: string; error?: string }> {
+  // Auth: Google Sign-In & User Identity Verification
+  async loginWithGoogle(idToken: string): Promise<{
+    success: boolean;
+    isNewUser?: boolean;
+    user?: UserProfile;
+    token?: string;
+    email?: string;
+    suggestedName?: string;
+    avatarUrl?: string;
+    idToken?: string;
+    error?: string;
+  }> {
     try {
-      const res = await fetch(`${API_BASE_URL}/auth/send-otp`, {
+      const res = await fetch(`${API_BASE_URL}/auth/google`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email })
+        body: JSON.stringify({ idToken })
       });
-      return await res.json();
+      const data = await res.json();
+      if (res.ok && data.success && !data.isNewUser && data.user && data.token) {
+        await this.saveSession(data.user, data.token);
+      }
+      return data;
     } catch (err: any) {
-      return { success: false, error: 'Network error. Could not connect to server.' };
+      return { success: false, error: 'Google sign-in failed. Network connection error.' };
     }
   },
 
-  // Auth: Verify Email OTP
-  async verifyOtp(email: string, otp: string): Promise<{ success: boolean; message?: string; error?: string }> {
+  // Auth: Complete Profile for New Google Users
+  async completeGoogleProfile(
+    idToken: string,
+    fullName: string,
+    username: string
+  ): Promise<{ success: boolean; user?: UserProfile; token?: string; error?: string }> {
     try {
-      const res = await fetch(`${API_BASE_URL}/auth/verify-otp`, {
+      const res = await fetch(`${API_BASE_URL}/auth/google/complete-profile`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, otp })
-      });
-      return await res.json();
-    } catch (err: any) {
-      return { success: false, error: 'Network error verifying OTP.' };
-    }
-  },
-
-  // Auth: Complete Multi-step Registration
-  async registerUser(fullName: string, username: string, email: string): Promise<{ success: boolean; user?: UserProfile; token?: string; error?: string }> {
-    try {
-      const res = await fetch(`${API_BASE_URL}/auth/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fullName, username, email })
+        body: JSON.stringify({ idToken, fullName, username })
       });
       const data = await res.json();
       if (res.ok && data.success && data.user && data.token) {
@@ -198,25 +202,19 @@ export const api = {
       }
       return data;
     } catch (err: any) {
-      return { success: false, error: 'Registration failed. Network error.' };
+      return { success: false, error: 'Failed to complete profile. Network connection error.' };
     }
   },
 
-  // Auth: Login Existing User
-  async loginUser(email: string): Promise<{ success: boolean; user?: UserProfile; token?: string; error?: string }> {
+  // Auth: Live Username Availability Check
+  async checkUsernameAvailability(username: string): Promise<{ available: boolean; reason?: string }> {
     try {
-      const res = await fetch(`${API_BASE_URL}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email })
-      });
-      const data = await res.json();
-      if (res.ok && data.success && data.user && data.token) {
-        await this.saveSession(data.user, data.token);
-      }
-      return data;
-    } catch (err: any) {
-      return { success: false, error: 'Login failed. Network error.' };
+      const trimmed = username.trim();
+      if (!trimmed) return { available: false, reason: 'Username cannot be empty' };
+      const res = await fetch(`${API_BASE_URL}/auth/check-username?username=${encodeURIComponent(trimmed)}`);
+      return await res.json();
+    } catch (err) {
+      return { available: true }; // Fail-soft on check error; backend still strictly validates on submission
     }
   },
 

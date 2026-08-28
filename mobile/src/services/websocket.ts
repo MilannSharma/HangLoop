@@ -146,6 +146,12 @@ export class RoomWebSocketClient {
     }
   }
 
+  requestSync() {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ type: 'REQUEST_SYNC' }));
+    }
+  }
+
   sendChatMessage(text: string, clientMessageId?: string) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({ type: 'CHAT_SEND', text, clientMessageId }));

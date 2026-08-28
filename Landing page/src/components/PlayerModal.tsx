@@ -191,7 +191,7 @@ export default function PlayerModal({ open, room, currentUser, onClose }: Props)
             <div className="video-container" ref={playerContainerRef}>
               <iframe
                 id="yt-embed-player"
-                src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&enablejsapi=1&rel=0&playsinline=1`}
+                src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&enablejsapi=1&rel=0`}
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
                 title={room.name}
@@ -239,31 +239,20 @@ export default function PlayerModal({ open, room, currentUser, onClose }: Props)
                 }
 
                 const sender: User = m.sender || { id: 'guest', username: 'Guest' }
-                const isKira = m.aiName === 'Kira' || sender.username === 'Kira' || sender.id === 'kira-ai';
-                const isBen = m.aiName === 'Ben' || sender.username === 'Ben' || sender.id === 'ben-ai';
-                const isAI = isKira || isBen || m.isAI;
-                const avatar = isKira
-                  ? 'https://api.dicebear.com/7.x/bottts/svg?seed=kira-ai'
-                  : (isBen ? 'https://api.dicebear.com/7.x/bottts/svg?seed=ben-ai' : (sender.avatar_url || getAvatarUrl(sender.username)));
+                const avatar = sender.avatar_url || getAvatarUrl(sender.username)
                 const timeStr = m.timestamp ? new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
-                const badge = isAI ? (
-                  <span className={`chat-msg-badge ${isBen ? 'ben-ai' : 'kira-ai'}`} style={{ background: isBen ? 'rgba(6,182,212,0.2)' : 'rgba(139,92,246,0.2)', color: isBen ? '#38BDF8' : '#A78BFA', border: `1px solid ${isBen ? '#06B6D4' : '#8B5CF6'}` }}>
-                    {isBen ? 'BEN 🤖' : 'KIRA 🤖'}
-                  </span>
+                const badge = sender.is_super_admin ? (
+                  <span className="chat-msg-badge admin">ADMIN</span>
                 ) : (
-                  sender.is_super_admin ? (
-                    <span className="chat-msg-badge admin">ADMIN</span>
-                  ) : (
-                    sender.is_moderator ? <span className="chat-msg-badge mod">MOD</span> : null
-                  )
-                );
+                  sender.is_moderator ? <span className="chat-msg-badge mod">MOD</span> : null
+                )
 
                 return (
                   <div className="chat-msg-row" key={idx}>
                     <img src={avatar} className="chat-msg-avatar" alt="Avatar" />
                     <div className="chat-msg-content">
                       <div className="chat-msg-meta">
-                        <span className="chat-msg-sender" style={{ color: isAI ? (isBen ? '#38BDF8' : '#A78BFA') : undefined }}>{sender.full_name || sender.username}</span>
+                        <span className="chat-msg-sender">{sender.full_name || sender.username}</span>
                         {badge}
                         <span className="chat-msg-time">{timeStr}</span>
                       </div>

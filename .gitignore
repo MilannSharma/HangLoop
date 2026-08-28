@@ -1,47 +1,34 @@
 # Dependencies
 node_modules/
-*/node_modules/
+.pnp
+.pnp.js
 
-# Cloudflare / Backend
-.wrangler/
-*/.wrangler/
+# Testing
+coverage/
 
-# Build outputs
+# Production Build
 dist/
-*/dist/
-dist-ios/
-*/dist-ios/
 build/
-*/build/
-web-build/
-*/web-build/
-
-# Expo / Mobile
 .expo/
-*/.expo/
-expo-env.d.ts
-*/expo-env.d.ts
-.kotlin/
-*.orig.*
-*.jks
-*.p8
-*.p12
-*.key
-*.mobileprovision
-.metro-health-check*
+dist-ios/
 
-# Logs
-*.log
-npm-debug.*
-yarn-debug.*
-yarn-error.*
+# Cloudflare Wrangler & D1
+.wrangler/
 
-# OS
-.DS_Store
-Thumbs.db
-
-# Environment
+# Environment and Secrets
 .env
 .env.local
-*/.env
-*/.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.local
+client_secret_*.json
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS Files
+.DS_Store
+Thumbs.db

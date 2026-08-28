@@ -7,9 +7,13 @@ CREATE TABLE IF NOT EXISTS users (
     username TEXT UNIQUE NOT NULL,
     bio TEXT DEFAULT 'Listening on Hangloop',
     avatar_url TEXT DEFAULT '',
+    google_sub TEXT UNIQUE,
     is_subscribed INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_sub ON users(google_sub);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 
 CREATE TABLE IF NOT EXISTS email_verifications (
     id TEXT PRIMARY KEY,

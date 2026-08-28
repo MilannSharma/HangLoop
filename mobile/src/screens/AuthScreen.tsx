@@ -1,9 +1,27 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Image, ActivityIndicator, Alert, ScrollView } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  Image,
+  ActivityIndicator,
+  ScrollView,
+  Platform,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AntDesign, Ionicons } from '@expo/vector-icons';
+import {
+  GoogleSignin,
+  isErrorWithCode,
+  statusCodes,
+} from '@react-native-google-signin/google-signin';
 import { useTheme } from '../theme/ThemeContext';
 import { api, UserProfile } from '../services/api';
 import { PolicyAcceptanceModal } from './PolicyAcceptanceModal';
+
+const GOOGLE_WEB_CLIENT_ID = '206898168634-1j6nr634csdvuth68ccpqdr6bb1cj38m.apps.googleusercontent.com';
 
 interface AuthScreenProps {
   onLoginSuccess: (user: UserProfile) => void;
@@ -13,119 +31,200 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
 
-  const [mode, setMode] = useState<'LOGIN' | 'REGISTER'>('LOGIN');
-  const [step, setStep] = useState<'DETAILS' | 'OTP'>('DETAILS');
+  // Initialize Google Sign-In safely on mount
+  useEffect(() => {
+    try {
+      GoogleSignin.configure({
+        webClientId: GOOGLE_WEB_CLIENT_ID,
+        offlineAccess: false,
+      });
+    } catch (err) {
+      console.warn('GoogleSignin configure error:', err);
+    }
+  }, []);
 
-  // Input States
-  const [email, setEmail] = useState('');
+  // Screen Mode: 'LOGIN' (Continue with Google) or 'COMPLETE_PROFILE' (New Google User Onboarding)
+  const [viewState, setViewState] = useState<'LOGIN' | 'COMPLETE_PROFILE'>('LOGIN');
+
+  // Form States for Profile Completion
   const [fullName, setFullName] = useState('');
   const [username, setUsername] = useState('');
-  const [otp, setOtp] = useState('');
+  const [verifiedEmail, setVerifiedEmail] = useState('');
+  const [pendingIdToken, setPendingIdToken] = useState('');
 
+  // Live Username Validation States
+  const [usernameStatus, setUsernameStatus] = useState<'IDLE' | 'CHECKING' | 'AVAILABLE' | 'UNAVAILABLE'>('IDLE');
+  const [usernameError, setUsernameError] = useState('');
+  const usernameCheckTimeoutRef = useRef<any>(null);
+
+  // Policy Acceptance Modal State
+  const [showPolicyModal, setShowPolicyModal] = useState(false);
+
+  // Loading & Error States
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Policy Modal
-  const [showPolicyModal, setShowPolicyModal] = useState(false);
-  const [pendingRegistrationUser, setPendingRegistrationUser] = useState<UserProfile | null>(null);
-
-  // 1. Existing User Login
-  const handleLogin = async () => {
-    if (!email.includes('@')) {
-      setErrorMsg('Please enter a valid email address.');
-      return;
-    }
-    setErrorMsg('');
+  const processGoogleIdToken = async (idToken: string) => {
     setLoading(true);
-    const res = await api.loginUser(email);
-    setLoading(false);
+    setErrorMsg('');
 
-    if (res.success && res.user) {
-      onLoginSuccess(res.user);
-    } else {
-      setErrorMsg(res.error || 'Account not found. Please click Register Today to create an account.');
+    try {
+      const res = await api.loginWithGoogle(idToken);
+      setLoading(false);
+
+      if (res.success) {
+        if (!res.isNewUser && res.user) {
+          // Existing User -> Login immediately
+          onLoginSuccess(res.user);
+        } else if (res.isNewUser) {
+          // New User -> Open Complete Profile View
+          setPendingIdToken(idToken);
+          setVerifiedEmail(res.email || '');
+          setFullName(res.suggestedName || '');
+          setUsername('');
+          setUsernameStatus('IDLE');
+          setViewState('COMPLETE_PROFILE');
+        }
+      } else {
+        setErrorMsg(res.error || 'Google authentication failed. Please try again.');
+      }
+    } catch (err: any) {
+      setLoading(false);
+      setErrorMsg('Network error during authentication. Please check your connection.');
     }
   };
 
-  // 2. Step 1: Request Real Gmail OTP for Registration
-  const handleRequestRegistrationOtp = async () => {
-    if (!fullName.trim()) {
-      setErrorMsg('Full Name is required.');
+  const handleContinueWithGoogle = async () => {
+    setErrorMsg('');
+    setLoading(true);
+
+    try {
+      if (Platform.OS === 'android') {
+        await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      }
+
+      const response = await GoogleSignin.signIn();
+      const idToken = (response as any).data?.idToken || (response as any).idToken;
+
+      if (idToken) {
+        setPendingIdToken(idToken);
+        await processGoogleIdToken(idToken);
+      } else {
+        setLoading(false);
+        setErrorMsg('Could not retrieve Google ID Token. Please verify Google Play Services.');
+      }
+    } catch (err: any) {
+      setLoading(false);
+      if (isErrorWithCode(err)) {
+        switch (err.code) {
+          case statusCodes.SIGN_IN_CANCELLED:
+            // User cancelled cleanly
+            return;
+          case statusCodes.IN_PROGRESS:
+            setErrorMsg('Sign-in is already in progress.');
+            return;
+          case statusCodes.PLAY_SERVICES_NOT_AVAILABLE:
+            setErrorMsg('Google Play Services is not available or outdated on this device.');
+            return;
+          default:
+            setErrorMsg(err.message || 'Google sign-in error occurred.');
+            return;
+        }
+      } else {
+        setErrorMsg(err?.message || 'Google sign-in failed. Please try again.');
+      }
+    }
+  };
+
+  // Live Debounced Username Availability Check
+  const handleUsernameChange = (text: string) => {
+    const cleaned = text.toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 20);
+    setUsername(cleaned);
+    setErrorMsg('');
+
+    if (usernameCheckTimeoutRef.current) {
+      clearTimeout(usernameCheckTimeoutRef.current);
+    }
+
+    if (!cleaned) {
+      setUsernameStatus('IDLE');
+      setUsernameError('');
       return;
     }
+
+    if (cleaned.length < 3) {
+      setUsernameStatus('UNAVAILABLE');
+      setUsernameError('Must be at least 3 characters');
+      return;
+    }
+
+    setUsernameStatus('CHECKING');
+    usernameCheckTimeoutRef.current = setTimeout(async () => {
+      const res = await api.checkUsernameAvailability(cleaned);
+      if (res.available) {
+        setUsernameStatus('AVAILABLE');
+        setUsernameError('');
+      } else {
+        setUsernameStatus('UNAVAILABLE');
+        setUsernameError(res.reason || 'Username already taken');
+      }
+    }, 400);
+  };
+
+  // Click "Continue" -> Open Legal Policy Acceptance Modal for new users
+  const handleProfileContinueClick = () => {
+    if (!fullName.trim()) {
+      setErrorMsg('Please enter your full name.');
+      return;
+    }
+
     if (!username.trim() || username.length < 3) {
       setErrorMsg('Username must be at least 3 characters.');
       return;
     }
-    if (!email.includes('@')) {
-      setErrorMsg('Valid email address is required.');
+
+    if (usernameStatus === 'UNAVAILABLE') {
+      setErrorMsg(usernameError || 'Please choose an available username.');
       return;
     }
 
     setErrorMsg('');
-    setLoading(true);
-    const res = await api.requestOtp(email);
-    setLoading(false);
-
-    if (res.success) {
-      setStep('OTP');
-      Alert.alert('Verification Code Sent', `A 6-digit OTP code was sent to ${email}. Please check your inbox.`);
-    } else {
-      setErrorMsg(res.error || 'Failed to send verification email.');
-    }
+    setShowPolicyModal(true);
   };
 
-  // 3. Step 2: Verify OTP Code
-  const handleVerifyOtpAndProceed = async () => {
-    if (otp.length < 6) {
-      setErrorMsg('Please enter the 6-digit verification code.');
-      return;
-    }
-
-    setErrorMsg('');
-    setLoading(true);
-    const res = await api.verifyOtp(email, otp);
-    setLoading(false);
-
-    if (res.success) {
-      // OTP Verified -> Open Legal Policy Acceptance Modal
-      setShowPolicyModal(true);
-    } else {
-      setErrorMsg(res.error || 'Invalid or expired verification code.');
-    }
-  };
-
-  // 4. Step 3: Accept Legal Policies & Create Account
+  // User accepts terms & policies -> Finalize registration in D1
   const handleAcceptPoliciesAndCreateAccount = async () => {
     setShowPolicyModal(false);
+    setErrorMsg('');
     setLoading(true);
-    const res = await api.registerUser(fullName, username, email);
+
+    const res = await api.completeGoogleProfile(pendingIdToken, fullName.trim(), username.trim());
     setLoading(false);
 
     if (res.success && res.user) {
       onLoginSuccess(res.user);
     } else {
-      setErrorMsg(res.error || 'Registration failed.');
+      setErrorMsg(res.error || 'Failed to create profile. Please try again.');
     }
   };
 
   return (
-    <ScrollView 
+    <ScrollView
       contentContainerStyle={[
-        styles.container, 
-        { 
+        styles.container,
+        {
           backgroundColor: colors.background,
-          paddingTop: insets.top + 20,
-          paddingBottom: insets.bottom + 20,
-        }
+          paddingTop: insets.top + 24,
+          paddingBottom: insets.bottom + 24,
+        },
       ]}
       keyboardShouldPersistTaps="handled"
     >
       {/* Prominent Hangloop Logo Branding */}
       <View style={styles.brandContainer}>
-        <Image 
-          source={require('../../assets/logo-white.png')} 
-          style={[styles.brandLogoImage, !isDark && { tintColor: colors.text }]} 
+        <Image
+          source={require('../../assets/logo-white.png')}
+          style={[styles.brandLogoImage, !isDark && { tintColor: colors.text }]}
         />
         <Text style={[styles.brandTitle, { color: colors.text }]}>HANGLOOP</Text>
         <Text style={[styles.tagline, { color: colors.textSecondary }]}>
@@ -133,160 +232,171 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
         </Text>
       </View>
 
-      {/* Main Form Card */}
+      {/* Main Container Card */}
       <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-        {mode === 'LOGIN' ? (
+        {viewState === 'LOGIN' ? (
           <>
-            <Text style={[styles.cardTitle, { color: colors.text }]}>Welcome Back</Text>
+            <Text style={[styles.cardTitle, { color: colors.text }]}>Welcome to Hangloop</Text>
             <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>
-              Enter your registered email to log into your account.
+              Join synchronized live music rooms, chat in real time, and discover trending tracks with friends.
             </Text>
 
-            {errorMsg ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
+            {errorMsg ? (
+              <View style={styles.errorBanner}>
+                <Ionicons name="alert-circle" size={18} color="#EF4444" style={{ marginRight: 6 }} />
+                <Text style={styles.errorBannerText}>{errorMsg}</Text>
+              </View>
+            ) : null}
 
-            <Text style={[styles.label, { color: colors.textSecondary }]}>Email Address</Text>
+            {/* Single Primary "Continue with Google" Button */}
+            <TouchableOpacity
+              style={[
+                styles.googleBtn,
+                {
+                  backgroundColor: isDark ? '#FFFFFF' : '#FFFFFF',
+                  borderColor: isDark ? 'transparent' : '#E2E8F0',
+                },
+              ]}
+              onPress={handleContinueWithGoogle}
+              disabled={loading}
+              activeOpacity={0.85}
+            >
+              {loading ? (
+                <ActivityIndicator color="#0F172A" />
+              ) : (
+                <View style={styles.googleBtnInner}>
+                  <AntDesign name="google" size={20} color="#EA4335" style={styles.googleIcon} />
+                  <Text style={styles.googleBtnText}>Continue with Google</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+
+            <Text style={[styles.disclaimerText, { color: colors.textMuted }]}>
+              By continuing, you agree to Hangloop's Terms of Service and Privacy Policy.
+            </Text>
+          </>
+        ) : (
+          /* COMPLETE PROFILE ONBOARDING VIEW */
+          <>
+            <Text style={[styles.cardTitle, { color: colors.text }]}>Complete your profile</Text>
+            <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>
+              Let's get your Hangloop profile ready.
+            </Text>
+
+            {errorMsg ? (
+              <View style={styles.errorBanner}>
+                <Ionicons name="alert-circle" size={18} color="#EF4444" style={{ marginRight: 6 }} />
+                <Text style={styles.errorBannerText}>{errorMsg}</Text>
+              </View>
+            ) : null}
+
+            {/* Verified Email (Read-Only) */}
+            <Text style={[styles.label, { color: colors.textSecondary }]}>Email</Text>
+            <View style={[styles.verifiedEmailBox, { backgroundColor: colors.inputBg, borderColor: colors.border }]}>
+              <View style={styles.emailTextRow}>
+                <Text style={[styles.verifiedEmailText, { color: colors.text }]}>{verifiedEmail}</Text>
+                <View style={styles.verifiedBadge}>
+                  <Ionicons name="checkmark-circle" size={14} color="#10B981" />
+                  <Text style={styles.verifiedBadgeText}>Verified with Google</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Full Name Input */}
+            <Text style={[styles.label, { color: colors.textSecondary }]}>Name</Text>
             <TextInput
-              style={[styles.input, { backgroundColor: colors.inputBg, color: colors.text, borderColor: colors.border }]}
-              placeholder="you@example.com"
+              style={[
+                styles.input,
+                {
+                  backgroundColor: colors.inputBg,
+                  color: colors.text,
+                  borderColor: colors.border,
+                },
+              ]}
+              placeholder="Your full name"
               placeholderTextColor={colors.textMuted}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              value={email}
-              onChangeText={setEmail}
+              value={fullName}
+              onChangeText={setFullName}
+              maxLength={50}
+              autoCapitalize="words"
             />
 
-            <TouchableOpacity 
-              style={[styles.primaryBtn, { backgroundColor: colors.buttonPrimaryBg }]} 
-              onPress={handleLogin} 
-              disabled={loading}
+            {/* Username Input with Live Availability */}
+            <View style={styles.labelRow}>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>Username</Text>
+              {usernameStatus === 'CHECKING' && (
+                <View style={styles.statusIndicatorRow}>
+                  <ActivityIndicator size="small" color={colors.primary} />
+                  <Text style={[styles.statusText, { color: colors.textMuted }]}> Checking...</Text>
+                </View>
+              )}
+              {usernameStatus === 'AVAILABLE' && (
+                <View style={styles.statusIndicatorRow}>
+                  <Ionicons name="checkmark" size={14} color="#10B981" />
+                  <Text style={[styles.statusText, { color: '#10B981', fontWeight: '700' }]}> Available</Text>
+                </View>
+              )}
+              {usernameStatus === 'UNAVAILABLE' && (
+                <View style={styles.statusIndicatorRow}>
+                  <Ionicons name="close" size={14} color="#EF4444" />
+                  <Text style={[styles.statusText, { color: '#EF4444', fontWeight: '700' }]}>
+                    {' '}
+                    {usernameError || 'Taken'}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  backgroundColor: colors.inputBg,
+                  color: colors.text,
+                  borderColor:
+                    usernameStatus === 'AVAILABLE'
+                      ? '#10B981'
+                      : usernameStatus === 'UNAVAILABLE'
+                      ? '#EF4444'
+                      : colors.border,
+                },
+              ]}
+              placeholder="e.g. johndoe"
+              placeholderTextColor={colors.textMuted}
+              value={username}
+              onChangeText={handleUsernameChange}
+              autoCapitalize="none"
+              autoCorrect={false}
+              maxLength={20}
+            />
+
+            {/* Continue Submit Button */}
+            <TouchableOpacity
+              style={[
+                styles.primaryBtn,
+                {
+                  backgroundColor: colors.buttonPrimaryBg,
+                  opacity:
+                    loading || !fullName.trim() || !username.trim() || usernameStatus === 'UNAVAILABLE' ? 0.6 : 1,
+                },
+              ]}
+              onPress={handleProfileContinueClick}
+              disabled={loading || !fullName.trim() || !username.trim() || usernameStatus === 'UNAVAILABLE'}
+              activeOpacity={0.85}
             >
               {loading ? (
                 <ActivityIndicator color={colors.buttonPrimaryText} />
               ) : (
-                <Text style={[styles.primaryBtnText, { color: colors.buttonPrimaryText }]}>Sign In →</Text>
+                <Text style={[styles.primaryBtnText, { color: colors.buttonPrimaryText }]}>
+                  Continue →
+                </Text>
               )}
             </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={styles.switchModeBtn}
-              onPress={() => {
-                setMode('REGISTER');
-                setStep('DETAILS');
-                setErrorMsg('');
-              }}
-            >
-              <Text style={[styles.switchModeText, { color: colors.primary }]}>
-                New here? <Text style={{ fontWeight: '800', textDecorationLine: 'underline' }}>Register Today</Text>
-              </Text>
-            </TouchableOpacity>
-          </>
-        ) : (
-          <>
-            {step === 'DETAILS' ? (
-              <>
-                <Text style={[styles.cardTitle, { color: colors.text }]}>Create Your Account</Text>
-                <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>
-                  Register today to join live music rooms and chat in real time.
-                </Text>
-
-                {errorMsg ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
-
-                <Text style={[styles.label, { color: colors.textSecondary }]}>Full Name</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: colors.inputBg, color: colors.text, borderColor: colors.border }]}
-                  placeholder="e.g. Ashish Sharma"
-                  placeholderTextColor={colors.textMuted}
-                  value={fullName}
-                  onChangeText={setFullName}
-                />
-
-                <Text style={[styles.label, { color: colors.textSecondary }]}>Unique Username Handle</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: colors.inputBg, color: colors.text, borderColor: colors.border }]}
-                  placeholder="e.g. ashish_music"
-                  placeholderTextColor={colors.textMuted}
-                  autoCapitalize="none"
-                  value={username}
-                  onChangeText={setUsername}
-                />
-
-                <Text style={[styles.label, { color: colors.textSecondary }]}>Email Address</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: colors.inputBg, color: colors.text, borderColor: colors.border }]}
-                  placeholder="hangloop.support@gmail.com"
-                  placeholderTextColor={colors.textMuted}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  value={email}
-                  onChangeText={setEmail}
-                />
-
-                <TouchableOpacity 
-                  style={[styles.primaryBtn, { backgroundColor: colors.buttonPrimaryBg }]} 
-                  onPress={handleRequestRegistrationOtp} 
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <ActivityIndicator color={colors.buttonPrimaryText} />
-                  ) : (
-                    <Text style={[styles.primaryBtnText, { color: colors.buttonPrimaryText }]}>Send Email Verification OTP →</Text>
-                  )}
-                </TouchableOpacity>
-
-                <TouchableOpacity 
-                  style={styles.switchModeBtn}
-                  onPress={() => {
-                    setMode('LOGIN');
-                    setErrorMsg('');
-                  }}
-                >
-                  <Text style={[styles.switchModeText, { color: colors.textSecondary }]}>
-                    Already have an account? <Text style={{ color: colors.primary, fontWeight: '800' }}>Sign In</Text>
-                  </Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                <Text style={[styles.cardTitle, { color: colors.text }]}>Enter Gmail OTP Code</Text>
-                <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>
-                  Verification code sent to <Text style={{ color: colors.primary }}>{email}</Text>
-                </Text>
-
-                {errorMsg ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
-
-                <Text style={[styles.label, { color: colors.textSecondary }]}>6-Digit OTP Code</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: colors.inputBg, color: colors.text, borderColor: colors.border, letterSpacing: 6, fontSize: 18, textAlign: 'center' }]}
-                  placeholder="123456"
-                  placeholderTextColor={colors.textMuted}
-                  keyboardType="number-pad"
-                  maxLength={6}
-                  value={otp}
-                  onChangeText={setOtp}
-                />
-
-                <TouchableOpacity 
-                  style={[styles.primaryBtn, { backgroundColor: colors.buttonPrimaryBg }]} 
-                  onPress={handleVerifyOtpAndProceed} 
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <ActivityIndicator color={colors.buttonPrimaryText} />
-                  ) : (
-                    <Text style={[styles.primaryBtnText, { color: colors.buttonPrimaryText }]}>Verify OTP Code →</Text>
-                  )}
-                </TouchableOpacity>
-
-                <TouchableOpacity style={styles.backBtn} onPress={() => setStep('DETAILS')}>
-                  <Text style={[styles.backBtnText, { color: colors.textMuted }]}>← Back to Details</Text>
-                </TouchableOpacity>
-              </>
-            )}
           </>
         )}
       </View>
 
-      {/* Policy Acceptance Modal */}
+      {/* Policy Acceptance Modal for New Google Users */}
       <PolicyAcceptanceModal
         visible={showPolicyModal}
         onAccept={handleAcceptPoliciesAndCreateAccount}
@@ -299,22 +409,22 @@ const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
     justifyContent: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
   },
   brandContainer: {
     alignItems: 'center',
     marginBottom: 28,
   },
   brandLogoImage: {
-    width: 60,
-    height: 60,
+    width: 68,
+    height: 68,
     resizeMode: 'contain',
     marginBottom: 10,
   },
   brandTitle: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: '900',
-    letterSpacing: 2,
+    letterSpacing: 3,
   },
   tagline: {
     fontSize: 13,
@@ -325,22 +435,72 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 24,
     borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 3,
   },
   cardTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '800',
     marginBottom: 6,
   },
   cardSubtitle: {
-    fontSize: 13,
-    marginBottom: 20,
-    lineHeight: 18,
+    fontSize: 13.5,
+    marginBottom: 22,
+    lineHeight: 19,
   },
-  errorText: {
-    color: '#EF4444',
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    marginBottom: 16,
+  },
+  errorBannerText: {
+    color: '#991B1B',
     fontSize: 13,
-    marginBottom: 14,
     fontWeight: '600',
+    flex: 1,
+  },
+  googleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginTop: 4,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  googleBtnInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  googleIcon: {
+    marginRight: 10,
+  },
+  googleBtnText: {
+    color: '#0F172A',
+    fontSize: 15.5,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  disclaimerText: {
+    fontSize: 11.5,
+    textAlign: 'center',
+    lineHeight: 16,
+    marginTop: 6,
+    paddingHorizontal: 8,
   },
   label: {
     fontSize: 12,
@@ -348,6 +508,51 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+  },
+  labelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  statusIndicatorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statusText: {
+    fontSize: 11.5,
+  },
+  verifiedEmailBox: {
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  emailTextRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  verifiedEmailText: {
+    fontSize: 14,
+    fontWeight: '600',
+    flex: 1,
+  },
+  verifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    marginLeft: 8,
+  },
+  verifiedBadgeText: {
+    color: '#065F46',
+    fontSize: 10.5,
+    fontWeight: '700',
+    marginLeft: 4,
   },
   input: {
     borderRadius: 12,
@@ -361,25 +566,11 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
-    marginTop: 4,
+    marginTop: 8,
   },
   primaryBtnText: {
-    fontSize: 15,
+    fontSize: 15.5,
     fontWeight: '800',
   },
-  switchModeBtn: {
-    alignItems: 'center',
-    marginTop: 18,
-    paddingVertical: 6,
-  },
-  switchModeText: {
-    fontSize: 13.5,
-  },
-  backBtn: {
-    alignItems: 'center',
-    marginTop: 16,
-  },
-  backBtnText: {
-    fontSize: 13,
-  },
 });
+

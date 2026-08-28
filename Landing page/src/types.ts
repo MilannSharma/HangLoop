@@ -43,8 +43,6 @@ export interface ChatMessage {
   text: string;
   sender?: User;
   isSystem?: boolean;
-  isAI?: boolean;
-  aiName?: string;
   timestamp?: string;
 }
 

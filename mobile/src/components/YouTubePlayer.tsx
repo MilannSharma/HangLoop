@@ -43,6 +43,7 @@ const INJECTED_HIDE_YT_CSS_JS = `
             .ytp-gradient-bottom,
             .ytp-title-channel,
             .ytp-title,
+            .ytp-title-link,
             .ytp-share-button,
             .ytp-overflow-button,
             .ytp-cards-button,
@@ -51,11 +52,24 @@ const INJECTED_HIDE_YT_CSS_JS = `
             .ytp-larger-tap-buttons,
             .ytp-copylink-button,
             .ytp-impression-link,
-            .ytp-paid-content-overlay {
+            .ytp-paid-content-overlay,
+            .ytm-engagement-panel,
+            .engagement-panel-container,
+            .comment-section,
+            ytm-comment-section-renderer,
+            ytd-engagement-panel-section-list-renderer,
+            #player-control-overlay,
+            .ytp-expand-pause-overlay,
+            .ytp-cued-thumbnail-overlay {
               display: none !important;
               opacity: 0 !important;
               visibility: hidden !important;
               pointer-events: none !important;
+            }
+            body, html {
+              overflow: hidden !important;
+              user-select: none !important;
+              -webkit-user-select: none !important;
             }
           \`;
           if (document.head) document.head.appendChild(style);
@@ -89,6 +103,12 @@ export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({
   const webPlayerInstanceRef = useRef<any>(null);
   const nativePlayerRef = useRef<YoutubeIframeRef>(null);
   const playerReadyRef = useRef(false);
+  const targetSeekPositionRef = useRef(seekPosition);
+
+  // Keep target seek position synchronized with latest props
+  useEffect(() => {
+    targetSeekPositionRef.current = seekPosition;
+  }, [seekPosition]);
 
   const [containerHeight, setContainerHeight] = useState(220);
 
@@ -97,12 +117,9 @@ export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({
   useEffect(() => { onTrackEndedRef.current = onTrackEnded; }, [onTrackEnded]);
   useEffect(() => { onTrackFailedRef.current = onTrackFailed; }, [onTrackFailed]);
 
-  const [playerStatus, setPlayerStatus] = useState<RealPlayerStatus>('UNSTARTED');
+  const [playerStatus, setPlayerStatus] = useState<RealPlayerStatus>('PLAYING');
   const [errorCode, setErrorCode] = useState<number | null>(null);
   const [needUserGesture, setNeedUserGesture] = useState(false);
-  // Force-play toggle: briefly flips play prop false→true to make react-native-youtube-iframe
-  // re-send playVideo() to the WebView (library only calls playVideo on false→true transition)
-  const [forcePlayPaused, setForcePlayPaused] = useState(false);
 
   // ── Auto-hide controls after 3 seconds ──
   const [controlsVisible, setControlsVisible] = useState(true);
@@ -111,28 +128,6 @@ export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({
 
   const activeVideoId = videoId || 'BddP6PYo2gs';
   const loadedVideoRef = useRef<string>('');
-
-  // ── Autoplay retry mechanism for live streams ──
-  // react-native-youtube-iframe's play prop may silently fail for live streams
-  // because the YouTube IFrame API's playVideo() fires before the live buffer is ready.
-  // We detect when the player reports 'paused'/'unstarted' but isPlaying=true and force-retry.
-  const isPlayingRef = useRef(isPlaying);
-  const isLiveStreamRef = useRef(isLiveStream);
-  const autoplayRetryCountRef = useRef(0);
-  const autoplayRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const MAX_AUTOPLAY_RETRIES = 6;
-
-  useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
-  useEffect(() => { isLiveStreamRef.current = isLiveStream; }, [isLiveStream]);
-
-  // Reset retry count when videoId changes (new video loaded)
-  useEffect(() => {
-    autoplayRetryCountRef.current = 0;
-    if (autoplayRetryTimerRef.current) {
-      clearTimeout(autoplayRetryTimerRef.current);
-      autoplayRetryTimerRef.current = null;
-    }
-  }, [activeVideoId]);
 
   const resetHideTimer = useCallback(() => {
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
@@ -144,21 +139,8 @@ export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({
       }).start(() => {
         setControlsVisible(false);
       });
-    }, 4500);
+    }, 3000);
   }, [controlsOpacity]);
-
-  const handleOverlayTap = useCallback(() => {
-    if (controlsVisible) {
-      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-      Animated.timing(controlsOpacity, { toValue: 0, duration: 250, useNativeDriver: true }).start(() => {
-        setControlsVisible(false);
-      });
-    } else {
-      setControlsVisible(true);
-      Animated.timing(controlsOpacity, { toValue: 1, duration: 200, useNativeDriver: true }).start();
-      resetHideTimer();
-    }
-  }, [controlsVisible, resetHideTimer, controlsOpacity]);
 
   // ── MediaSession API (Lock Screen & System Notification Controls) ──
   useEffect(() => {
@@ -234,24 +216,22 @@ export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({
             cc_load_policy: 0,
             cc_lang_pref: 'none',
             showinfo: 0,
-            start: (!isLiveStream && seekPosition > 0) ? Math.floor(seekPosition) : undefined,
+            start: Math.max(0, Math.floor(targetSeekPositionRef.current || seekPosition)),
           },
           events: {
             onReady: (event: any) => {
               if (!isMounted) return;
               playerReadyRef.current = true;
               loadedVideoRef.current = activeVideoId;
-              setPlayerStatus('PLAYING');
-              setErrorCode(null);
-              setNeedUserGesture(false);
               try {
+                const targetSec = Math.max(0, Math.floor(targetSeekPositionRef.current || seekPosition));
+                if (targetSec > 0) {
+                  event.target.seekTo(targetSec, true);
+                }
                 event.target.playVideo();
                 if (typeof event.target.unMute === 'function') event.target.unMute();
               } catch (e) {
-                try {
-                  if (typeof event.target.mute === 'function') event.target.mute();
-                  event.target.playVideo();
-                } catch (e2) {}
+                setNeedUserGesture(true);
               }
             },
             onStateChange: (event: any) => {
@@ -263,6 +243,10 @@ export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({
                 setNeedUserGesture(false);
               } else if (state === 2) {
                 setPlayerStatus('PAUSED');
+                // Auto-recover if supposed to be playing
+                if (isPlaying && !isStreamEnded) {
+                  try { event.target.playVideo(); } catch (e) {}
+                }
               } else if (state === 3) {
                 setPlayerStatus('BUFFERING');
               } else if (state === 0) {
@@ -307,7 +291,7 @@ export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({
     }
 
     return () => { isMounted = false; };
-  }, [playerContainerId, activeVideoId, seekPosition, isLiveStream]);
+  }, [playerContainerId, activeVideoId]);
 
   // ──────────────────────────────────────────────────────────────
   // 2. VIDEO CHANGE EFFECT (Web & Native)
@@ -322,121 +306,90 @@ export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({
     setNeedUserGesture(false);
     resetHideTimer();
 
+    const targetSec = Math.max(0, Math.floor(seekPosition));
+
     if (Platform.OS === 'web') {
       const player = webPlayerInstanceRef.current;
       if (player && playerReadyRef.current && typeof player.loadVideoById === 'function') {
         try {
           player.loadVideoById({
             videoId: activeVideoId,
-            startSeconds: (!isLiveStream && seekPosition > 0) ? Math.floor(seekPosition) : 0,
+            startSeconds: targetSec,
           });
           player.playVideo();
           if (typeof player.unMute === 'function') player.unMute();
         } catch (e) {}
       }
     } else {
-      if (!isLiveStream && seekPosition > 0 && nativePlayerRef.current && typeof (nativePlayerRef.current as any).seekTo === 'function') {
+      if (nativePlayerRef.current && typeof (nativePlayerRef.current as any).seekTo === 'function') {
         try {
-          (nativePlayerRef.current as any).seekTo(Math.floor(seekPosition), true);
+          (nativePlayerRef.current as any).seekTo(targetSec, true);
         } catch (e) {}
       }
     }
-  }, [activeVideoId, seekPosition, isLiveStream, resetHideTimer]);
+  }, [activeVideoId, seekPosition, resetHideTimer]);
 
   // ──────────────────────────────────────────────────────────────
   // 3. LIVE SEEK SYNC EFFECT (Auto-syncs on unpause, unlock, etc.)
   // ──────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!isLiveStream && seekPosition > 0 && playerReadyRef.current) {
+    if (seekPosition >= 0 && playerReadyRef.current) {
+      const targetSec = Math.max(0, Math.floor(seekPosition));
       if (Platform.OS === 'web') {
         const player = webPlayerInstanceRef.current;
         if (player && typeof player.seekTo === 'function') {
           try {
-            player.seekTo(Math.floor(seekPosition), true);
+            const current = typeof player.getCurrentTime === 'function' ? player.getCurrentTime() : -1;
+            if (current < 0 || Math.abs(current - targetSec) > 2) {
+              player.seekTo(targetSec, true);
+            }
+            if (isPlaying && !isStreamEnded) {
+              player.playVideo();
+              if (typeof player.unMute === 'function') player.unMute();
+            }
           } catch (e) {}
         }
       } else {
         try {
-          (nativePlayerRef.current as any)?.seekTo(Math.floor(seekPosition), true);
+          const player = nativePlayerRef.current as any;
+          if (player && typeof player.getCurrentTime === 'function') {
+            player.getCurrentTime().then((current: number) => {
+              if (Math.abs(current - targetSec) > 2) {
+                player.seekTo(targetSec, true);
+              }
+            }).catch(() => {
+              player.seekTo(targetSec, true);
+            });
+          } else if (player && typeof player.seekTo === 'function') {
+            player.seekTo(targetSec, true);
+          }
         } catch (e) {}
       }
     }
-  }, [seekPosition, isLiveStream]);
+  }, [seekPosition, isPlaying, isStreamEnded]);
 
   // ──────────────────────────────────────────────────────────────
-  // 4. Native State Handlers (with autoplay retry for live streams)
+  // 4. Native State Handlers
   // ──────────────────────────────────────────────────────────────
-
-  // Helper: schedule a retry to force-play if the player auto-paused
-  const scheduleAutoplayRetry = useCallback(() => {
-    if (autoplayRetryCountRef.current >= MAX_AUTOPLAY_RETRIES) return;
-    if (!isPlayingRef.current || !playerReadyRef.current) return;
-    if (autoplayRetryTimerRef.current) clearTimeout(autoplayRetryTimerRef.current);
-
-    // Escalating delay: 800ms → 1.2s → 2s → 3s → 5s → 8s
-    const delays = [800, 1200, 2000, 3000, 5000, 8000];
-    const delay = delays[Math.min(autoplayRetryCountRef.current, delays.length - 1)];
-
-    autoplayRetryTimerRef.current = setTimeout(() => {
-      autoplayRetryTimerRef.current = null;
-      if (!isPlayingRef.current || !playerReadyRef.current) return;
-
-      autoplayRetryCountRef.current++;
-      console.log(`[YT Autoplay Retry] Attempt ${autoplayRetryCountRef.current}/${MAX_AUTOPLAY_RETRIES} — forcing playVideo()`);
-
-      if (Platform.OS === 'web') {
-        const player = webPlayerInstanceRef.current;
-        if (player && typeof player.playVideo === 'function') {
-          try {
-            player.playVideo();
-            if (typeof player.unMute === 'function') player.unMute();
-          } catch (e) {}
-        }
-      } else {
-        // Native: react-native-youtube-iframe only calls playVideo() when
-        // the play prop transitions false→true. We briefly set play=false
-        // then back to true to force this transition.
-        setForcePlayPaused(true);
-        setTimeout(() => setForcePlayPaused(false), 100);
-      }
-    }, delay);
-  }, []);
-
   const handleNativeStateChange = useCallback((state: string) => {
     console.log('[Native YT State]:', state);
     if (state === 'playing') {
       setPlayerStatus('PLAYING');
       setErrorCode(null);
       setNeedUserGesture(false);
-      // Player is actually playing — cancel any pending retry
-      autoplayRetryCountRef.current = MAX_AUTOPLAY_RETRIES; // stop retries
-      if (autoplayRetryTimerRef.current) {
-        clearTimeout(autoplayRetryTimerRef.current);
-        autoplayRetryTimerRef.current = null;
-      }
     } else if (state === 'paused') {
-      // CRITICAL FIX: If we want the video playing but the player paused itself,
-      // schedule a retry. This happens with live streams that buffer-then-pause.
-      if (isPlayingRef.current && playerReadyRef.current && autoplayRetryCountRef.current < MAX_AUTOPLAY_RETRIES) {
-        console.log('[Native YT State] Player auto-paused but isPlaying=true — scheduling retry');
-        setPlayerStatus('BUFFERING'); // show buffering, not paused (user expects it to load)
-        scheduleAutoplayRetry();
-      } else {
-        setPlayerStatus('PAUSED');
+      setPlayerStatus('PAUSED');
+      // If the song should be playing and wasn't paused by player controls, auto-resume
+      if (isPlaying && !isStreamEnded && nativePlayerRef.current) {
+        // Player will remain playing via `play={isPlaying && !isStreamEnded}`
       }
     } else if (state === 'buffering') {
       setPlayerStatus('BUFFERING');
-    } else if (state === 'unstarted') {
-      // Live streams may report 'unstarted' — treat as buffering and schedule retry
-      if (isPlayingRef.current && playerReadyRef.current && autoplayRetryCountRef.current < MAX_AUTOPLAY_RETRIES) {
-        setPlayerStatus('BUFFERING');
-        scheduleAutoplayRetry();
-      }
     } else if (state === 'ended') {
       setPlayerStatus('ENDED');
       if (onTrackEndedRef.current) onTrackEndedRef.current();
     }
-  }, [scheduleAutoplayRetry]);
+  }, [isPlaying, isStreamEnded]);
 
   const handleNativeError = useCallback((error: string) => {
     console.warn('[Native YT Error]:', error, 'video:', activeVideoId);
@@ -454,36 +407,24 @@ export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({
     setPlayerStatus('PLAYING');
     setErrorCode(null);
     setNeedUserGesture(false);
-    autoplayRetryCountRef.current = 0; // reset retries for this video
-
-    // Instant Auto Live-Seek on entry (only for catalog tracks with real seek offset)
-    if (!isLiveStream && seekPosition > 0) {
+    // Instant Auto Live-Seek on entry
+    const targetSec = Math.max(0, Math.floor(targetSeekPositionRef.current));
+    if (targetSec > 0) {
       try {
-        (nativePlayerRef.current as any)?.seekTo(Math.floor(seekPosition), true);
+        (nativePlayerRef.current as any)?.seekTo(targetSec, true);
       } catch (e) {}
     }
-
-    // Schedule a verification check — ensure the player ACTUALLY started playing
-    // after the YouTube IFrame API reports ready. Live streams often report ready
-    // but then fail to start playback immediately.
-    if (isPlayingRef.current) {
-      setTimeout(() => {
-        if (!isPlayingRef.current || !playerReadyRef.current) return;
-        // If status hasn't reached PLAYING yet, trigger retry cycle
-        scheduleAutoplayRetry();
-      }, 1500);
-    }
-  }, [seekPosition, isLiveStream, scheduleAutoplayRetry]);
+  }, []);
 
   // ──────────────────────────────────────────────────────────────
-  // 5. Play/Pause Sync (Web + Native autoplay enforcement)
+  // 5. Play/Pause Sync
   // ──────────────────────────────────────────────────────────────
   useEffect(() => {
     if (Platform.OS === 'web') {
       const player = webPlayerInstanceRef.current;
       if (player && playerReadyRef.current && typeof player.playVideo === 'function') {
         try {
-          if (isPlaying) {
+          if (isPlaying && !isStreamEnded) {
             player.playVideo();
             if (typeof player.unMute === 'function') player.unMute();
           } else {
@@ -491,23 +432,8 @@ export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({
           }
         } catch (e) {}
       }
-    } else {
-      // Native: When isPlaying becomes true, reset retry counter so autoplay
-      // retry mechanism can kick in if the player doesn't start
-      if (isPlaying && playerReadyRef.current) {
-        autoplayRetryCountRef.current = 0;
-      }
     }
-  }, [isPlaying]);
-
-  // Cleanup retry timer on unmount
-  useEffect(() => {
-    return () => {
-      if (autoplayRetryTimerRef.current) {
-        clearTimeout(autoplayRetryTimerRef.current);
-      }
-    };
-  }, []);
+  }, [isPlaying, isStreamEnded]);
 
   // ──────────────────────────────────────────────────────────────
   // Handlers
@@ -533,12 +459,13 @@ export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({
 
   const handleResyncLive = useCallback(() => {
     resetHideTimer();
+    const targetSec = Math.max(0, Math.floor(targetSeekPositionRef.current || seekPosition));
     if (Platform.OS === 'web') {
       const player = webPlayerInstanceRef.current;
       if (player && playerReadyRef.current) {
         try {
           if (typeof player.seekTo === 'function') {
-            player.seekTo(Math.max(0, Math.floor(seekPosition)), true);
+            player.seekTo(targetSec, true);
           }
           player.playVideo();
           if (typeof player.unMute === 'function') player.unMute();
@@ -546,7 +473,7 @@ export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({
       }
     } else {
       try {
-        (nativePlayerRef.current as any)?.seekTo(Math.max(0, Math.floor(seekPosition)), true);
+        (nativePlayerRef.current as any)?.seekTo(targetSec, true);
       } catch (e) {}
     }
     setNeedUserGesture(false);
@@ -567,6 +494,17 @@ export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({
     }
     if (onTogglePlay) onTogglePlay();
   }, [onTogglePlay, resetHideTimer]);
+
+  const handleOverlayTap = useCallback(() => {
+    if (controlsVisible) {
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+      Animated.timing(controlsOpacity, { toValue: 0, duration: 300, useNativeDriver: true }).start(() => {
+        setControlsVisible(false);
+      });
+    } else {
+      resetHideTimer();
+    }
+  }, [controlsVisible, resetHideTimer, controlsOpacity]);
 
   // ══════════════════════════════════════════════════════════════
   // RENDER (Platform-aware Player Engine)
@@ -601,7 +539,7 @@ export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({
         onLayout={handleLayout}
       >
         {/* YouTube Player Container (Platform-aware) */}
-        <View style={styles.playerWrapper}>
+        <View style={styles.playerWrapper} pointerEvents="none">
           {Platform.OS === 'web' ? (
             React.createElement('div', {
               id: playerContainerId,
@@ -611,7 +549,7 @@ export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({
             <YoutubePlayer
               ref={nativePlayerRef}
               height={isListenOnly ? 1 : containerHeight}
-              play={isPlaying && !isStreamEnded && !forcePlayPaused}
+              play={isPlaying && !isStreamEnded}
               videoId={activeVideoId}
               webViewProps={{
                 allowsInlineMediaPlayback: true,
@@ -633,7 +571,7 @@ export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({
                 cc_lang_pref: 'none',
                 showClosedCaptions: false,
                 iv_load_policy: 3,
-                start: (!isLiveStream && seekPosition > 0) ? Math.floor(seekPosition) : undefined,
+                start: Math.max(0, Math.floor(seekPosition)),
               }}
               onChangeState={handleNativeStateChange}
               onError={handleNativeError}
@@ -694,35 +632,7 @@ export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({
               </View>
             )}
 
-            {/* CENTER QUICK ACTION CONTROLS ON TAP */}
-            <Animated.View
-              style={[styles.centerControlsOverlay, { opacity: controlsOpacity }]}
-              pointerEvents={controlsVisible ? 'box-none' : 'none'}
-            >
-              <TouchableOpacity
-                style={styles.centerMainBtn}
-                onPress={handlePlayPause}
-                activeOpacity={0.8}
-                disabled={playerStatus === 'ERROR'}
-              >
-                <Ionicons
-                  name={playerStatus === 'PLAYING' ? 'pause' : 'play'}
-                  size={30}
-                  color="#FFF"
-                  style={{ marginLeft: playerStatus === 'PLAYING' ? 0 : 3 }}
-                />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.centerResyncBtn}
-                onPress={handleResyncLive}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="sync" size={20} color="#FFF" />
-              </TouchableOpacity>
-            </Animated.View>
-
-            {/* HANGLOOP CONTROL BAR — auto-hides after interaction */}
+            {/* HANGLOOP CONTROL BAR — auto-hides after 3 seconds */}
             <Animated.View style={[styles.controlBar, { opacity: controlsOpacity }]} pointerEvents={controlsVisible ? 'auto' : 'none'}>
               {/* Song metadata */}
               <View style={styles.controlMeta}>
@@ -797,6 +707,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'transparent',
     zIndex: 10,
+    elevation: 10,
   },
   controlBar: {
     position: 'absolute',
@@ -829,34 +740,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-  },
-  centerControlsOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 20,
-    zIndex: 25,
-  },
-  centerMainBtn: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: 'rgba(10, 11, 15, 0.75)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.4)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  centerResyncBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(10, 11, 15, 0.75)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   controlBtn: {
     width: 32,

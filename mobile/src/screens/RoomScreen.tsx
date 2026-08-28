@@ -41,23 +41,14 @@ interface RoomScreenProps {
   onLeaveRoom: () => void;
 }
 
-function extractYouTubeVideoId(urlOrId?: string): string {
-  if (!urlOrId) return '';
-  const raw = urlOrId.trim();
-  if (/^[a-zA-Z0-9_-]{11}$/.test(raw)) return raw;
-  const match = raw.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/|live\/))([\w-]{11})/);
-  return match && match[1] ? match[1] : raw;
-}
-
 export const RoomScreen: React.FC<RoomScreenProps> = ({
   room,
   user,
   blockedUsers = [],
   onBlockUser,
-  onUnblockUser,
   onLeaveRoom,
 }) => {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
 
   const [wsClient, setWsClient] = useState<RoomWebSocketClient | null>(null);
@@ -86,20 +77,10 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
   const isSuperAdmin = (user.email || '').toLowerCase().trim() === 'milansharma942105@gmail.com';
   const isModerator = !!(user.is_moderator || isSuperAdmin || isHost);
 
-  const initialVideoId = room.current_video_id || extractYouTubeVideoId(room.source_youtube_url);
-
   // Default empty state — real data arrives from Durable Object via INIT_STATE WebSocket message
   const [roomState, setRoomState] = useState<RoomStatePayload>({
     playbackState: {
-      currentVideo: initialVideoId ? {
-        id: 'init-' + initialVideoId,
-        videoId: initialVideoId,
-        title: room.current_title || room.name,
-        artist: room.current_artist || room.created_by || 'Hangloop Live',
-        thumbnail: room.current_thumbnail || room.thumbnail_url || `https://img.youtube.com/vi/${initialVideoId}/hqdefault.jpg`,
-        addedBy: room.created_by || 'Admin',
-        durationSeconds: room.play_source_type === 'YOUTUBE_URL' ? 0 : 240,
-      } : null,
+      currentVideo: null,
       isPlaying: true,
       seekPosition: 0,
       queue: [],
@@ -223,9 +204,6 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
           };
         });
 
-        if (data.playbackState) {
-          setIsLocalPlaying(true);
-        }
         if (data.roomStartTime) setRoomStartTime(data.roomStartTime);
         if (data.isHost !== undefined) setIsHost(data.isHost);
         if (data.isStreamEnded !== undefined) setIsStreamEnded(data.isStreamEnded);
@@ -315,10 +293,9 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
       } else if (data.type === 'ERROR') {
         Alert.alert('Chat Notice', data.message);
       } else if (data.type === 'PLAYBACK_SYNC') {
-        setIsLocalPlaying(true);
         setRoomState((prev) => ({
           ...prev,
-          playbackState: data.playbackState || prev.playbackState,
+          playbackState: data.playbackState,
         }));
       } else if (data.type === 'QUEUE_UPDATED') {
         setRoomState((prev) => ({
@@ -329,7 +306,6 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
           },
         }));
       } else if (data.type === 'ROOM_UPDATED') {
-        setIsLocalPlaying(true);
         if (data.room) {
           setCurrentRoomData((prev) => ({
             ...prev,
@@ -691,15 +667,20 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
   const handleTogglePlay = () => {
     setIsLocalPlaying((prev) => {
       const willPlay = !prev;
-      if (willPlay && roomState.playbackState?.startTimestamp) {
-        const elapsed = (Date.now() - roomState.playbackState.startTimestamp) / 1000;
-        setRoomState((r) => ({
-          ...r,
-          playbackState: {
-            ...r.playbackState,
-            seekPosition: Math.max(0, elapsed),
-          },
-        }));
+      if (willPlay) {
+        if (roomState.playbackState?.startTimestamp) {
+          const elapsed = (Date.now() - roomState.playbackState.startTimestamp) / 1000;
+          setRoomState((r) => ({
+            ...r,
+            playbackState: {
+              ...r.playbackState,
+              seekPosition: Math.max(0, elapsed),
+            },
+          }));
+        }
+        if (wsClient) {
+          wsClient.requestSync();
+        }
       }
       return willPlay;
     });
@@ -740,14 +721,7 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
     }
 
     const isMe = item.sender.username === user.username || item.sender.id === user.id;
-    const isKira = !!(item.aiName === 'Kira' || item.sender.id === 'kira-ai' || item.sender.username === 'Kira');
-    const isBen = !!(item.aiName === 'Ben' || item.sender.id === 'ben-ai' || item.sender.username === 'Ben');
-    const isAI = isKira || isBen || !!item.isAI;
-    const botColor = isKira ? '#8B5CF6' : (isBen ? '#06B6D4' : '#8B5CF6');
-    const botLabel = isKira ? 'Kira 🤖' : (isBen ? 'Ben 🤖' : 'AI BOT');
-    const botAvatar = isKira
-      ? 'https://api.dicebear.com/7.x/bottts/svg?seed=kira-ai'
-      : (isBen ? 'https://api.dicebear.com/7.x/bottts/svg?seed=ben-ai' : 'https://api.dicebear.com/7.x/bottts/svg?seed=kira-ai');
+    const isAI = !!(item.isAI || item.sender.id === 'kira-ai' || item.sender.username === 'Kira');
     const isSenderMod = !isAI && !!(item.sender.is_moderator || item.sender.is_super_admin || item.sender.username === 'milansharma942105@gmail.com');
     const isSenderHost = !isAI && item.sender.username === room.created_by;
 
@@ -769,11 +743,11 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
         delayLongPress={250}
       >
         <Image
-          source={{ uri: item.sender.avatar_url || (isAI ? botAvatar : 'https://i.pravatar.cc/100') }}
+          source={{ uri: item.sender.avatar_url || (isAI ? 'https://api.dicebear.com/7.x/bottts/svg?seed=kira-ai' : 'https://i.pravatar.cc/100') }}
           style={[
             styles.chatAvatar,
             {
-              borderColor: isAI ? botColor : (isSenderMod ? '#F0C040' : (isMe ? colors.primary : colors.border)),
+              borderColor: isAI ? '#8B5CF6' : (isSenderMod ? '#F0C040' : (isMe ? colors.primary : colors.border)),
               borderWidth: isAI || isSenderMod ? 2 : 1.5,
             },
           ]}
@@ -784,16 +758,16 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
             <Text
               style={[
                 styles.chatUsername,
-                { color: isAI ? botColor : (isSenderMod ? '#F0C040' : (isMe ? colors.primary : colors.text)) },
+                { color: isAI ? '#A78BFA' : (isSenderMod ? '#F0C040' : (isMe ? colors.primary : colors.text)) },
               ]}
             >
               {item.sender.full_name || item.sender.username}
             </Text>
 
             {isAI && (
-              <View style={[styles.aiBadge, { backgroundColor: botColor }]}>
+              <View style={[styles.aiBadge, { backgroundColor: '#8B5CF6' }]}>
                 <Ionicons name="sparkles" size={8} color="#FFFFFF" style={{ marginRight: 2 }} />
-                <Text style={styles.aiBadgeText}>{botLabel}</Text>
+                <Text style={styles.aiBadgeText}>AI BOT</Text>
               </View>
             )}
 
@@ -824,7 +798,6 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
       >
         {/* Top Header */}
         <View
@@ -866,7 +839,7 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
                 isPlaying={isLocalPlaying && !isStreamEnded}
                 seekPosition={roomState.playbackState.seekPosition}
                 isListenOnly={isListenOnlyMode}
-                isLiveStream={currentRoomData.play_source_type === 'YOUTUBE_URL' || room.play_source_type === 'YOUTUBE_URL' || (roomState.playbackState?.currentVideo ? roomState.playbackState.currentVideo.durationSeconds === 0 : false)}
+                isLiveStream={currentRoomData.play_source_type === 'YOUTUBE_URL'}
                 isStreamEnded={isStreamEnded || !!roomState.playbackState?.isStreamEnded}
                 onTogglePlay={handleTogglePlay}
                 onToggleListenOnly={() => setIsListenOnlyMode((prev) => !prev)}
@@ -896,6 +869,7 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
                     }));
                   }
                   if (wsClient) {
+                    wsClient.requestSync();
                     wsClient.sendHeartbeat();
                   }
                 }}
@@ -1064,6 +1038,11 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
               style={[styles.textInput, { color: colors.text }]}
               placeholder={Boolean(timeoutUntil && timeoutUntil > Date.now()) ? "You are on chat timeout..." : "Type a message… (max 300 chars)"}
               placeholderTextColor={colors.textMuted}
+              selectionColor={colors.primary}
+              cursorColor={colors.primary}
+              keyboardAppearance={isDark ? 'dark' : 'light'}
+              autoCorrect={false}
+              autoCapitalize="sentences"
               value={inputText}
               onChangeText={(t) => {
                 const trimmed = t.slice(0, 300);
@@ -1419,12 +1398,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 22,
     borderWidth: 1,
+    minHeight: 44,
+    paddingHorizontal: 4,
   },
   textInput: {
     flex: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === 'ios' ? 10 : 8,
     fontSize: 14,
+    lineHeight: 18,
+    minHeight: 40,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   charCounterWrap: {
     paddingRight: 12,

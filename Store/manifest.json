@@ -1,7 +1,7 @@
 {
   "name": "Hangloop",
   "version": "1.0.0",
-  "buildDate": "2026-08-20",
+  "buildDate": "2026-08-28",
   "packageName": "com.hangloop.app",
   "bundleId": "com.hangloop.app",
   "android": {
@@ -10,8 +10,8 @@
     "versionCode": 1,
     "minSdkVersion": 24,
     "targetSdkVersion": 36,
-    "fileSize": "68.6 MB",
-    "sha256": "F83D9F01CA755EAEB993DBB518EE0EFAF5752D9C4CE9591CEFA5073C91CAA854",
+    "fileSize": "66.1 MB",
+    "sha256": "84D2B0689425A536C435B13A085B45E696954412C45C0DD94050043B43D6BD3F",
     "architecture": "Universal (arm64-v8a, armeabi-v7a, x86_64)"
   },
   "ios": {
