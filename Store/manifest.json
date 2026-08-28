@@ -10,24 +10,8 @@
     "versionCode": 1,
     "minSdkVersion": 24,
     "targetSdkVersion": 36,
-    "fileSize": "65.2 MB",
-    "sha256": "0A7CDC72C753B652D34F4AEEAC5C379404B0FD0C191B841EEE32C09C069D172A",
+    "fileSize": "65.1 MB",
+    "sha256": "4430DF7AF8017B8097CDA6BDC1E14CF5F623F34B30F0A0D382B2202685958EFE",
     "architecture": "Universal (arm64-v8a, armeabi-v7a, x86_64)"
-  },
-  "ios": {
-    "fileName": "hangloop-v1.0.0-ios.zip",
-    "version": "1.0.0",
-    "bundleVersion": "1.0.0",
-    "fileSize": "8.87 MB",
-    "sha256": "E43BFAC28B936B738D562086BE9F9AE1A38287FDBA8AE8FF7A419C682E6E85B9",
-    "distribution": "Standalone Production Bundle (Hermes Bytecode + Native Assets)"
-  },
-  "releaseNotes": [
-    "Initial v1.0.0 Production Release",
-    "Real-time synchronized YouTube music live rooms",
-    "Background audio playback support on iOS & Android",
-    "Live chat with real-time emoji reactions and typing previews",
-    "Kira AI Music Assistant and automated catalog curation",
-    "Super Admin custom live room management and stream locking"
-  ]
+  }
 }

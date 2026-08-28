@@ -16,9 +16,8 @@ import {
   getSongRequests,
   syncRequestedSong,
   seedFullCatalog,
-  backfillCatalogDurations
 } from './catalogService';
-import { processKiraMessage, ensureKiraTables } from './kiraService';
+import { processKiraMessage, processAIBotMessage, ensureKiraTables } from './kiraService';
 
 export { RoomDurableObject };
 
@@ -29,6 +28,7 @@ export interface Env {
   AI?: any; // Cloudflare Workers AI Binding (Ai)
   YOUTUBE_API_KEY?: string;
   GEMINI_API_KEY?: string;
+  GEMINI_MODEL?: string;
   GMAIL_EMAIL?: string;
   GMAIL_APP_PASSWORD?: string;
 }
@@ -209,7 +209,8 @@ async function ensureAllTables(db: D1Database) {
 }
 
 const EXPECTED_GOOGLE_CLIENT_IDS = [
-  '206898168634-1j6nr634csdvuth68ccpqdr6bb1cj38m.apps.googleusercontent.com'
+  '206898168634-1j6nr634csdvuth68ccpqdr6bb1cj38m.apps.googleusercontent.com',
+  '206898168634-oop0ksi0rh7a6i5vuj4kn1er92pnsikq.apps.googleusercontent.com'
 ];
 const EXPECTED_GOOGLE_PROJECT_NUMBER = '206898168634';
 
@@ -702,35 +703,32 @@ export default {
 
       // ──────────────────────────────────────────────────────────────
       // KIRA AI LIVE CHAT ENDPOINT (POST /api/chat/kira)
+      // AI BOTS LIVE CHAT ENDPOINTS (POST /api/chat/kira, /api/chat/leo, /api/chat/ai)
       // ──────────────────────────────────────────────────────────────
-      if (url.pathname === '/api/chat/kira' && request.method === 'POST') {
+      if ((url.pathname === '/api/chat/kira' || url.pathname === '/api/chat/leo' || url.pathname === '/api/chat/ai') && request.method === 'POST') {
         const body = (await request.json().catch(() => ({}))) as any;
-        const { messageId, userId, message, username } = body;
+        const { messageId, userId, message, username, bot } = body;
 
         const effectiveUserId = userId || 'anonymous';
         const rawText = message || '';
+        let targetBot: 'Kira' | 'Leo' = 'Kira';
 
-        const result = await processKiraMessage({
-          messageId: messageId || `kira-http-${Date.now()}`,
+        if (url.pathname === '/api/chat/leo' || bot === 'Leo' || /^(!leo|@leo)/i.test(rawText)) {
+          targetBot = 'Leo';
+        }
+
+        const result = await processAIBotMessage({
+          botName: targetBot,
+          messageId: messageId || `${targetBot.toLowerCase()}-http-${Date.now()}`,
           userId: effectiveUserId,
           username: username || 'User',
-          rawText,
+          rawText: rawText.startsWith('!') || rawText.startsWith('@') ? rawText : `!${targetBot.toLowerCase()} ${rawText}`,
           env
         });
 
-        if (!result.isKira) {
-          return new Response(JSON.stringify({
-            success: false,
-            reason: 'not_kira_command',
-            reply: 'Command must start with !kira'
-          }), {
-            status: 400,
-            headers: { 'Content-Type': 'application/json', ...corsHeaders }
-          });
-        }
-
         return new Response(JSON.stringify({
           success: result.success,
+          bot: result.botName,
           reply: result.reply,
           reason: result.reason
         }), {
@@ -740,8 +738,37 @@ export default {
       }
 
       // ──────────────────────────────────────────────────────────────
-      // 7. SUPER ADMIN: Song Requests Hub
+      // DIRECT APK & BUILD DOWNLOAD ENDPOINTS
       // ──────────────────────────────────────────────────────────────
+      if (
+        url.pathname === '/api/download/apk' ||
+        url.pathname === '/api/download/android' ||
+        url.pathname === '/api/download/latest' ||
+        url.pathname === '/builds/hangloop-v1.0.0.apk' ||
+        url.pathname === '/builds/hangloop-latest.apk' ||
+        url.pathname === '/hangloop-v1.0.0.apk'
+      ) {
+        if (!env.R2_BUCKET) {
+          return new Response('Storage bucket not configured', { status: 503, headers: corsHeaders });
+        }
+
+        const objectKey = url.pathname.includes('v1.0.0') ? 'builds/hangloop-v1.0.0.apk' : 'builds/hangloop-latest.apk';
+        const object = await env.R2_BUCKET.get(objectKey);
+
+        if (!object) {
+          return new Response('APK build not found', { status: 404, headers: corsHeaders });
+        }
+
+        const headers = new Headers();
+        object.writeHttpMetadata(headers);
+        headers.set('etag', object.httpEtag);
+        headers.set('Content-Type', 'application/vnd.android.package-archive');
+        headers.set('Content-Disposition', 'attachment; filename="hangloop-v1.0.0.apk"');
+        headers.set('Cache-Control', 'public, max-age=3600');
+        headers.set('Access-Control-Allow-Origin', '*');
+
+        return new Response(object.body, { headers });
+      }
 
       // GET /api/admin/song-requests
       if (url.pathname === '/api/admin/song-requests' && request.method === 'GET') {
@@ -1154,7 +1181,7 @@ export default {
           });
         }
 
-        const reservedUsernames = ['admin', 'system', 'hangloop', 'kira', 'moderator', 'support', 'help', 'root', 'bot'];
+        const reservedUsernames = ['admin', 'system', 'hangloop', 'kira', 'leo', 'moderator', 'support', 'help', 'root', 'bot'];
         if (reservedUsernames.includes(rawUsername)) {
           return new Response(JSON.stringify({ available: false, reason: 'This username is reserved.' }), {
             headers: { 'Content-Type': 'application/json', ...corsHeaders }
@@ -1292,7 +1319,7 @@ export default {
           });
         }
 
-        const reservedUsernames = ['admin', 'system', 'hangloop', 'kira', 'moderator', 'support', 'help', 'root', 'bot'];
+        const reservedUsernames = ['admin', 'system', 'hangloop', 'kira', 'leo', 'moderator', 'support', 'help', 'root', 'bot'];
         if (reservedUsernames.includes(normalizedUsername)) {
           return new Response(JSON.stringify({ error: 'This username is reserved. Please choose another.' }), {
             status: 400,

@@ -103,6 +103,7 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
   const isPrivateChat = room.room_type === 'PRIVATE_CHAT' || room.is_private === 1;
 
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [typingUsers, setTypingUsers] = useState<Map<string, { username: string; expiresAt: number }>>(new Map());
   const typingTimeoutRef = useRef<any>(null);
   const isNearBottomRef = useRef<boolean>(true);
@@ -136,12 +137,14 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
 
-    const showSub = Keyboard.addListener(showEvent, () => {
+    const showSub = Keyboard.addListener(showEvent, (e) => {
       setIsKeyboardVisible(true);
+      setKeyboardHeight(e?.endCoordinates?.height || 0);
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
     });
     const hideSub = Keyboard.addListener(hideEvent, () => {
       setIsKeyboardVisible(false);
+      setKeyboardHeight(0);
     });
 
     return () => {
@@ -721,7 +724,7 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
     }
 
     const isMe = item.sender.username === user.username || item.sender.id === user.id;
-    const isAI = !!(item.isAI || item.sender.id === 'kira-ai' || item.sender.username === 'Kira');
+    const isAI = !!(item.isAI || item.sender.id === 'kira-ai' || item.sender.id === 'leo-ai' || item.sender.username === 'Kira' || item.sender.username === 'Leo');
     const isSenderMod = !isAI && !!(item.sender.is_moderator || item.sender.is_super_admin || item.sender.username === 'milansharma942105@gmail.com');
     const isSenderHost = !isAI && item.sender.username === room.created_by;
 
@@ -743,11 +746,11 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
         delayLongPress={250}
       >
         <Image
-          source={{ uri: item.sender.avatar_url || (isAI ? 'https://api.dicebear.com/7.x/bottts/svg?seed=kira-ai' : 'https://i.pravatar.cc/100') }}
+          source={{ uri: item.sender.avatar_url || (isAI ? (item.sender.username === 'Leo' ? 'https://api.dicebear.com/7.x/bottts/svg?seed=leo-ai' : 'https://api.dicebear.com/7.x/bottts/svg?seed=kira-ai') : 'https://i.pravatar.cc/100') }}
           style={[
             styles.chatAvatar,
             {
-              borderColor: isAI ? '#8B5CF6' : (isSenderMod ? '#F0C040' : (isMe ? colors.primary : colors.border)),
+              borderColor: isAI ? (item.sender.username === 'Leo' ? '#3B82F6' : '#8B5CF6') : (isSenderMod ? '#F0C040' : (isMe ? colors.primary : colors.border)),
               borderWidth: isAI || isSenderMod ? 2 : 1.5,
             },
           ]}
@@ -1005,98 +1008,129 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
           </View>
         )}
 
-        {/* 5. FIXED MESSAGE INPUT — Sticky at bottom */}
-        {Boolean(timeoutUntil && timeoutUntil > Date.now()) && (
-          <View style={[styles.timeoutWarningBanner, { backgroundColor: 'rgba(239, 68, 68, 0.15)', borderColor: '#EF4444' }]}>
-            <Ionicons name="time" size={14} color="#EF4444" style={{ marginRight: 6 }} />
-            <Text style={[styles.timeoutWarningText, { color: '#EF4444' }]}>
-              You are on chat timeout (expires in {Math.ceil((Number(timeoutUntil) - Date.now()) / 60000)}m)
-            </Text>
-          </View>
-        )}
-
+        {/* 5 & 6. BOTTOM CHAT COMPOSER WITH LIVE PREVIEW & EMOJI BAR */}
         <View
           style={[
-            styles.inputBar,
+            styles.bottomComposerContainer,
             {
               backgroundColor: colors.surface,
               borderTopColor: colors.border,
-              paddingBottom: inputBottomPadding,
+              marginBottom: isKeyboardVisible && Platform.OS === 'android' ? keyboardHeight : 0,
+              paddingBottom: isKeyboardVisible ? 6 : (insets.bottom > 0 ? insets.bottom + 6 : 10),
             },
           ]}
         >
-          <View
-            style={[
-              styles.inputWrapper,
-              {
-                backgroundColor: colors.inputBg,
-                borderColor: inputText.length >= 300 ? colors.liveRed : (inputText.length > 250 ? '#F59E0B' : colors.border),
-              },
-            ]}
-          >
-            <TextInput
-              style={[styles.textInput, { color: colors.text }]}
-              placeholder={Boolean(timeoutUntil && timeoutUntil > Date.now()) ? "You are on chat timeout..." : "Type a message… (max 300 chars)"}
-              placeholderTextColor={colors.textMuted}
-              selectionColor={colors.primary}
-              cursorColor={colors.primary}
-              keyboardAppearance={isDark ? 'dark' : 'light'}
-              autoCorrect={false}
-              autoCapitalize="sentences"
-              value={inputText}
-              onChangeText={(t) => {
-                const trimmed = t.slice(0, 300);
-                setInputText(trimmed);
-                if (wsClient && trimmed.trim().length > 0) {
-                  wsClient.sendTyping(true);
-                  if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-                  typingTimeoutRef.current = setTimeout(() => {
-                    if (wsClient) wsClient.sendTyping(false);
-                  }, 2500);
-                } else if (wsClient && trimmed.trim().length === 0) {
-                  if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-                  wsClient.sendTyping(false);
-                }
-              }}
-              onSubmitEditing={handleSendMessage}
-              maxLength={300}
-              editable={!Boolean(timeoutUntil && timeoutUntil > Date.now())}
-            />
-
-            {/* Interactive Character Counter */}
-            {inputText.length > 180 && (
-              <View style={styles.charCounterWrap}>
-                <Text
-                  style={[
-                    styles.charCounterText,
-                    {
-                      color: inputText.length >= 300 ? colors.liveRed : (inputText.length > 250 ? '#F59E0B' : colors.textMuted),
-                    },
-                  ]}
+          {/* Quick Emoji Reaction Strip (Directly above input composer) */}
+          {(isKeyboardVisible || inputText.length > 0) && (
+            <View style={[styles.quickEmojiBar, { borderBottomWidth: 1, borderBottomColor: isDark ? '#27272A' : '#E4E4E7' }]}>
+              {['❤️', '😂', '🎉', '😢', '😮', '😅', '😊', '🔥', '👏', '💯'].map((emoji) => (
+                <TouchableOpacity
+                  key={emoji}
+                  style={styles.quickEmojiBtn}
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    if (inputText.length < 300) {
+                      setInputText((prev) => (prev + emoji).slice(0, 300));
+                    }
+                  }}
                 >
-                  {inputText.length}/300
-                </Text>
-              </View>
-            )}
-          </View>
+                  <Text style={styles.quickEmojiText}>{emoji}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
 
-          <TouchableOpacity
-            style={[
-              styles.sendBtn,
-              {
-                backgroundColor: inputText.trim() && !Boolean(timeoutUntil && timeoutUntil > Date.now()) ? colors.primary : colors.surfaceLight,
-              },
-            ]}
-            onPress={handleSendMessage}
-            disabled={!inputText.trim() || Boolean(timeoutUntil && timeoutUntil > Date.now())}
-          >
-            <Ionicons
-              name="send"
-              size={16}
-              color={inputText.trim() && !Boolean(timeoutUntil && timeoutUntil > Date.now()) ? "#FFFFFF" : colors.textMuted}
-              style={{ marginLeft: 2 }}
+          {/* Timeout Warning */}
+          {Boolean(timeoutUntil && timeoutUntil > Date.now()) && (
+            <View style={[styles.timeoutWarningBanner, { backgroundColor: 'rgba(239, 68, 68, 0.15)', borderColor: '#EF4444' }]}>
+              <Ionicons name="time" size={14} color="#EF4444" style={{ marginRight: 6 }} />
+              <Text style={[styles.timeoutWarningText, { color: '#EF4444' }]}>
+                You are on chat timeout (expires in {Math.ceil((Number(timeoutUntil) - Date.now()) / 60000)}m)
+              </Text>
+            </View>
+          )}
+
+          {/* Input Bar */}
+          <View style={styles.inputBar}>
+            {/* User Thumbnail Avatar next to input (Matches Reference UI) */}
+            <Image
+              source={{ uri: user.avatar_url || 'https://i.pravatar.cc/100' }}
+              style={styles.composerAvatar}
             />
-          </TouchableOpacity>
+
+            <View
+              style={[
+                styles.inputWrapper,
+                {
+                  backgroundColor: colors.inputBg,
+                  borderColor: inputText.length >= 300 ? colors.liveRed : (inputText.length > 250 ? '#F59E0B' : colors.border),
+                },
+              ]}
+            >
+              <TextInput
+                style={[styles.textInput, { color: colors.text }]}
+                placeholder={Boolean(timeoutUntil && timeoutUntil > Date.now()) ? "You are on chat timeout..." : "Add a comment…"}
+                placeholderTextColor={colors.textMuted}
+                selectionColor={colors.primary}
+                cursorColor={colors.primary}
+                keyboardAppearance={isDark ? 'dark' : 'light'}
+                autoCorrect={false}
+                autoCapitalize="sentences"
+                value={inputText}
+                onChangeText={(t) => {
+                  const trimmed = t.slice(0, 300);
+                  setInputText(trimmed);
+                  if (wsClient && trimmed.trim().length > 0) {
+                    wsClient.sendTyping(true);
+                    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+                    typingTimeoutRef.current = setTimeout(() => {
+                      if (wsClient) wsClient.sendTyping(false);
+                    }, 2500);
+                  } else if (wsClient && trimmed.trim().length === 0) {
+                    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+                    wsClient.sendTyping(false);
+                  }
+                }}
+                onSubmitEditing={handleSendMessage}
+                maxLength={300}
+                editable={!Boolean(timeoutUntil && timeoutUntil > Date.now())}
+              />
+
+              {/* Interactive Character Counter */}
+              {inputText.length > 200 && (
+                <View style={styles.charCounterWrap}>
+                  <Text
+                    style={[
+                      styles.charCounterText,
+                      {
+                        color: inputText.length >= 300 ? colors.liveRed : (inputText.length > 250 ? '#F59E0B' : colors.textMuted),
+                      },
+                    ]}
+                  >
+                    {inputText.length}/300
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <TouchableOpacity
+              style={[
+                styles.sendBtn,
+                {
+                  backgroundColor: inputText.trim() && !Boolean(timeoutUntil && timeoutUntil > Date.now()) ? '#EF4444' : (isDark ? '#27272A' : '#E4E4E7'),
+                },
+              ]}
+              onPress={handleSendMessage}
+              disabled={!inputText.trim() || Boolean(timeoutUntil && timeoutUntil > Date.now())}
+            >
+              <Ionicons
+                name="send"
+                size={17}
+                color={inputText.trim() && !Boolean(timeoutUntil && timeoutUntil > Date.now()) ? "#FFFFFF" : colors.textMuted}
+                style={{ marginLeft: 2 }}
+              />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Modals & Popups */}
@@ -1385,12 +1419,15 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
+  bottomComposerContainer: {
+    borderTopWidth: 1,
+    paddingTop: 6,
+  },
   inputBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    borderTopWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
   },
   inputWrapper: {
     flex: 1,
@@ -1445,5 +1482,85 @@ const styles = StyleSheet.create({
   typingText: {
     fontSize: 12,
     fontStyle: 'italic',
+  },
+  quickEmojiBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderTopWidth: 1,
+  },
+  quickEmojiBtn: {
+    padding: 6,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickEmojiText: {
+    fontSize: 20,
+  },
+  typingPreviewContainer: {
+    marginHorizontal: 12,
+    marginBottom: 6,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  typingPreviewHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  typingPreviewHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  livePreviewBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  livePreviewBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  typingPreviewAuthor: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  typingPreviewLength: {
+    fontSize: 10,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
+  typingPreviewScroll: {
+    maxHeight: 90,
+  },
+  typingPreviewScrollContent: {
+    paddingVertical: 2,
+  },
+  typingPreviewText: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '500',
+  },
+  composerAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 8,
+    backgroundColor: '#333',
   },
 });

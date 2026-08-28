@@ -21,7 +21,7 @@ import { useTheme } from '../theme/ThemeContext';
 import { api, UserProfile } from '../services/api';
 import { PolicyAcceptanceModal } from './PolicyAcceptanceModal';
 
-const GOOGLE_WEB_CLIENT_ID = '206898168634-1j6nr634csdvuth68ccpqdr6bb1cj38m.apps.googleusercontent.com';
+const GOOGLE_WEB_CLIENT_ID = '206898168634-oop0ksi0rh7a6i5vuj4kn1er92pnsikq.apps.googleusercontent.com';
 
 interface AuthScreenProps {
   onLoginSuccess: (user: UserProfile) => void;

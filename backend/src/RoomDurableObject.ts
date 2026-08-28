@@ -1,7 +1,7 @@
 import { PlaybackState, QueueItem, ChatMessage, Room } from './types';
 import { fetchYouTubeMetadata, validateVideoTheme, validateVideoPlayable, searchYouTubeCandidates } from './themeValidator';
 import { recordSongFailure } from './catalogService';
-import { isKiraCommand, processKiraMessage } from './kiraService';
+import { isAIBotCommand, processAIBotMessage } from './kiraService';
 
 interface ConnectedMember {
   webSocket: WebSocket;
@@ -633,53 +633,92 @@ export class RoomDurableObject {
 
           this.broadcast({ type: 'CHAT_RECEIVE', message: chatMsg });
 
-          // ── KIRA AI LIVE CHAT INTEGRATION ──
-          if (isKiraCommand(text)) {
-            processKiraMessage({
-              messageId: 'kira-req-' + chatMsg.id,
+          // ── AI BOTS LIVE CHAT INTEGRATION (KIRA & LEO) ──
+          const botCheck = isAIBotCommand(text);
+          if (botCheck.isBot && botCheck.botName) {
+            const targetBot = botCheck.botName;
+            const botUserId = targetBot === 'Kira' ? 'kira-ai' : 'leo-ai';
+            const botFullName = targetBot === 'Kira' ? 'Kira 🤖' : 'Leo 🎧';
+            const botAvatar = targetBot === 'Kira'
+              ? 'https://api.dicebear.com/7.x/bottts/svg?seed=kira-ai'
+              : 'https://api.dicebear.com/7.x/bottts/svg?seed=leo-ai';
+
+            // 1. Broadcast realistic bot typing indicator
+            this.broadcast({
+              type: 'USER_TYPING',
+              userId: botUserId,
+              username: targetBot,
+              isTyping: true
+            });
+
+            processAIBotMessage({
+              botName: targetBot,
+              messageId: `${targetBot.toLowerCase()}-req-` + chatMsg.id,
               userId: member.user.id,
               username: member.user.username,
               rawText: text,
               env: this.env
-            }).then((kiraResult) => {
-              if (kiraResult.isKira && kiraResult.reply) {
-                const kiraTimestamp = Date.now();
-                const kiraMsg: ChatMessage = {
-                  id: 'kira-' + kiraTimestamp + '-' + Math.random().toString(36).substring(7),
+            }).then(async (botResult) => {
+              // 2. Natural human typing delay based on message length (snappy 300ms - 700ms)
+              const delay = Math.min(700, Math.max(300, (botResult.reply?.length || 20) * 6));
+              await new Promise((r) => setTimeout(r, delay));
+
+              // 3. Clear typing indicator
+              this.broadcast({
+                type: 'USER_TYPING',
+                userId: botUserId,
+                username: targetBot,
+                isTyping: false
+              });
+
+              if (botResult.isBot && botResult.reply) {
+                const botTimestamp = Date.now();
+                const aiChatMessage: ChatMessage = {
+                  id: `${targetBot.toLowerCase()}-` + botTimestamp + '-' + Math.random().toString(36).substring(7),
                   sender: {
-                    id: 'kira-ai',
-                    username: 'Kira',
-                    full_name: 'Kira 🤖',
-                    avatar_url: 'https://api.dicebear.com/7.x/bottts/svg?seed=kira-ai',
+                    id: botUserId,
+                    username: targetBot,
+                    full_name: botFullName,
+                    avatar_url: botAvatar,
                     is_moderator: true,
                   },
-                  text: kiraResult.reply,
+                  text: botResult.reply,
                   isAI: true,
-                  aiName: 'Kira',
-                  timestamp: kiraTimestamp
+                  aiName: targetBot,
+                  timestamp: botTimestamp
                 };
 
-                this.chatLogs.push(kiraMsg);
+                this.chatLogs.push(aiChatMessage);
                 if (this.chatLogs.length > 50) this.chatLogs.shift();
 
-                // Persist Kira message to D1
+                // Persist AI bot message to D1
                 if (this.env.DB && this.roomId) {
                   this.env.DB.prepare(
                     `INSERT INTO chat_messages (id, client_message_id, room_id, sender_id, sender_name, sender_avatar, sender_is_moderator, sender_is_super_admin, text, is_ai, ai_name, is_system, timestamp_ms)
-                     VALUES (?, '', ?, 'kira-ai', 'Kira 🤖', ?, 1, 0, ?, 1, 'Kira', 0, ?)`
+                     VALUES (?, '', ?, ?, ?, ?, 1, 0, ?, 1, ?, 0, ?)`
                   ).bind(
-                    kiraMsg.id,
+                    aiChatMessage.id,
                     this.roomId,
-                    kiraMsg.sender.avatar_url,
-                    kiraResult.reply,
-                    kiraTimestamp
+                    botUserId,
+                    botFullName,
+                    botAvatar,
+                    botResult.reply,
+                    targetBot,
+                    botTimestamp
                   ).run().catch(() => {});
                 }
 
-                this.broadcast({ type: 'CHAT_RECEIVE', message: kiraMsg });
+                this.broadcast({ type: 'CHAT_RECEIVE', message: aiChatMessage });
               }
             }).catch((err) => {
-              console.warn('[RoomDurableObject] Kira AI processing error:', err);
+              // Clear typing indicator on error
+              this.broadcast({
+                type: 'USER_TYPING',
+                userId: botUserId,
+                username: targetBot,
+                isTyping: false
+              });
+              console.warn(`[RoomDurableObject] ${targetBot} AI processing error:`, err);
             });
           }
           break;
