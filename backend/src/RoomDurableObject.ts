@@ -47,6 +47,7 @@ export class RoomDurableObject {
   private roomName: string = '';
   private tags: string[] = [];
   private isStreamEnded: boolean = false;
+  private welcomedUsers: Map<string, number> = new Map(); // userId -> lastWelcomeTimestampMs
 
   constructor(state: DurableObjectState, env: any) {
     this.state = state;
@@ -497,6 +498,75 @@ export class RoomDurableObject {
       user: memberInfo.user,
       memberCount: this.members.size
     }, webSocket);
+
+    // ── KIRA AI AUTO WELCOME ON ROOM ENTRANCE ──
+    this.sendKiraWelcome(memberInfo.user);
+  }
+
+  private async sendKiraWelcome(user: { id: string; username: string; full_name?: string }) {
+    if (!user || !user.id) return;
+    const now = Date.now();
+    const lastWelcomed = this.welcomedUsers.get(user.id) || 0;
+    // Don't repeat welcome message if user reconnected within 3 minutes in this room session
+    if (now - lastWelcomed < 180000) return;
+    this.welcomedUsers.set(user.id, now);
+
+    const displayName = (user.full_name || user.username || 'friend').replace(/[@]/g, '').trim();
+    const welcomePhrases = [
+      `Arre waah! Welcome @${displayName} to the room! 🎉 Kya sunna pasand karoge?`,
+      `Ayy @${displayName} in the house! 🔥 Headphones lagao aur vibe karo!`,
+      `Welcome @${displayName}! 🎧 Hangloop pe aapka swagat hai, gaane ka maza lo!`,
+      `Hii @${displayName}! 💖 Aate hi room ka vibe badh gaya, enjoy the beats!`,
+      `Yo @${displayName}! 🎶 Let's vibe together! Koi gaana suggest karna ho toh @kira bolna!`
+    ];
+    const welcomeText = welcomePhrases[Math.floor(Math.random() * welcomePhrases.length)];
+    const botUserId = 'kira-ai';
+    const botFullName = 'Kira 🤖';
+    const botAvatar = 'https://api.dicebear.com/7.x/bottts/svg?seed=kira-ai';
+
+    // Organic short delay so client finishes rendering the initial room state
+    setTimeout(async () => {
+      const botTimestamp = Date.now();
+      const aiChatMessage: ChatMessage = {
+        id: 'kira-welcome-' + botTimestamp + '-' + Math.random().toString(36).substring(7),
+        sender: {
+          id: botUserId,
+          username: 'Kira',
+          full_name: botFullName,
+          avatar_url: botAvatar,
+          is_moderator: true,
+        },
+        text: welcomeText,
+        isAI: true,
+        aiName: 'Kira',
+        timestamp: botTimestamp
+      };
+
+      this.chatLogs.push(aiChatMessage);
+      if (this.chatLogs.length > 50) this.chatLogs.shift();
+
+      // Persist welcome message to D1
+      if (this.env.DB && this.roomId) {
+        try {
+          await this.env.DB.prepare(
+            `INSERT INTO chat_messages (id, client_message_id, room_id, sender_id, sender_name, sender_avatar, sender_is_moderator, sender_is_super_admin, text, is_ai, ai_name, is_system, timestamp_ms)
+             VALUES (?, '', ?, ?, ?, ?, 1, 0, ?, 1, 'Kira', 0, ?)`
+          ).bind(
+            aiChatMessage.id,
+            this.roomId,
+            botUserId,
+            botFullName,
+            botAvatar,
+            welcomeText,
+            botTimestamp
+          ).run();
+        } catch (e) {
+          console.warn('Failed persisting Kira welcome to D1:', e);
+        }
+      }
+
+      this.broadcast({ type: 'CHAT_RECEIVE', message: aiChatMessage });
+    }, 700);
   }
 
   async webSocketMessage(webSocket: WebSocket, message: string | ArrayBuffer) {
